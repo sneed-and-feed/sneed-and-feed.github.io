@@ -1,0 +1,1425 @@
+/**
+ * @file style.css
+ * @brief Dieter Rams / Braun functionalist industrial design system for the ambient synthesizer.
+ * "Weniger, aber besser" - Less, but better.
+ */
+
+:root {
+  /* Braun Light Chassis Theme (Default) */
+  --bg-app: #ECEBE4;
+  --bg-panel: #E2E0D8;
+  --bg-panel-inset: #D7D5CC;
+  --bg-bezel: #121414;
+  --border-line: #CBC8BD;
+  --border-subtle: #D8D6CD;
+  --text-primary: #1C1D1E;
+  --text-secondary: #5E6064;
+  --text-muted: #8E9094;
+  --knob-cap: #D4D2C9;
+  --knob-border: #BBB8AD;
+  --knob-indicator: #1C1D1E;
+  --knob-track: #D0CEC4;
+  --knob-fill: #1C1D1E;
+  --braun-orange: #EE592B;
+  --braun-orange-glow: rgba(238, 89, 43, 0.45);
+  --braun-green: #2A7B4C;
+  --braun-amber: #E5A93C;
+  --phosphor-color: #24FF6A;
+  --phosphor-glow: rgba(36, 255, 106, 0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "Consolas", "Roboto Mono", monospace;
+  --panel-radius: 4px;
+}
+
+[data-theme="dark"],
+[data-theme="matte-black"] {
+  /* Braun Dark Anthracite / Matte Black Theme */
+  --bg-app: #141517;
+  --bg-panel: #1E2023;
+  --bg-panel-inset: #151618;
+  --bg-bezel: #0A0B0C;
+  --border-line: #3A3A3A;
+  --border-subtle: #2C2E33;
+  --text-primary: #F0F0F0;
+  --text-secondary: #BDBDBD;
+  --text-muted: #8E8E8E;
+  --text-dim: #8E8E8E;
+  --knob-cap: #2B2D31;
+  --knob-border: #4A4D52;
+  --knob-indicator: #F0F0F0;
+  --knob-track: #2A2C30;
+  --knob-fill: #EE592B;
+  --braun-orange: #EE592B;
+  --braun-orange-glow: rgba(238, 89, 43, 0.55);
+  --braun-green: #24FF6A;
+  --braun-amber: #F0B429;
+  --phosphor-color: #24FF6A;
+  --phosphor-glow: rgba(36, 255, 106, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 40px;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* --- Chassis Frame --- */
+.braun-chassis {
+  width: 100%;
+  max-width: 1240px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Header / Top Bar --- */
+.braun-header {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-bottom: 1px solid var(--border-line);
+  background-color: var(--bg-panel);
+}
+
+.braun-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.braun-logo-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.braun-brand {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.braun-model {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.braun-utility-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.braun-top-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.braun-top-controls.braun-tuning-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  border-top: 1px solid var(--border-line);
+  background-color: var(--bg-panel-inset);
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.braun-tuning-cluster {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.braun-preset-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* --- Master Power & Status Buttons --- */
+.braun-power-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  height: 30px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.braun-power-btn:hover {
+  border-color: var(--text-muted);
+}
+
+.braun-power-btn.is-active {
+  background-color: var(--braun-orange);
+  color: #FFF;
+  border-color: var(--braun-orange);
+  box-shadow: 0 0 12px var(--braun-orange-glow);
+}
+
+.braun-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #7A7C80;
+  display: inline-block;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.braun-led.is-active {
+  background-color: var(--braun-orange);
+  box-shadow: 0 0 8px var(--braun-orange-glow);
+}
+
+.braun-power-btn.is-active .braun-led {
+  background-color: #FFF;
+  box-shadow: 0 0 6px #FFF;
+}
+
+/* --- Record Button --- */
+.braun-record-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  height: 30px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.braun-record-btn.is-recording {
+  background-color: #D32F2F;
+  color: #FFF;
+  border-color: #D32F2F;
+  animation: pulse-red 1.4s infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* --- Preset / Reset Button --- */
+.braun-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  height: 30px;
+  line-height: 1;
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.braun-reset-btn:hover {
+  border-color: var(--text-muted);
+  background-color: var(--knob-track);
+}
+
+.braun-reset-btn:active,
+.braun-reset-btn.is-active {
+  background-color: var(--braun-orange);
+  color: #FFF;
+  border-color: var(--braun-orange);
+  box-shadow: 0 0 10px var(--braun-orange-glow);
+}
+
+.braun-reset-icon {
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.braun-reset-btn:active .braun-reset-icon,
+.braun-reset-btn.is-active .braun-reset-icon {
+  transform: rotate(-360deg);
+}
+
+[data-theme="dark"] .braun-reset-btn,
+[data-theme="matte-black"] .braun-reset-btn,
+[data-theme="dark"] .braun-record-btn,
+[data-theme="matte-black"] .braun-record-btn,
+[data-theme="dark"] .braun-power-btn,
+[data-theme="matte-black"] .braun-power-btn,
+[data-theme="dark"] .braun-select,
+[data-theme="matte-black"] .braun-select {
+  background-color: #212327;
+  border-color: #3A3D44;
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .braun-reset-btn:hover,
+[data-theme="matte-black"] .braun-reset-btn:hover,
+[data-theme="dark"] .braun-record-btn:hover,
+[data-theme="matte-black"] .braun-record-btn:hover,
+[data-theme="dark"] .braun-power-btn:hover,
+[data-theme="matte-black"] .braun-power-btn:hover,
+[data-theme="dark"] .braun-select:hover,
+[data-theme="matte-black"] .braun-select:hover {
+  background-color: #2B2E33;
+  border-color: #F0F0F0;
+  color: #FFFFFF;
+}
+
+[data-theme="dark"] .braun-label-inline,
+[data-theme="matte-black"] .braun-label-inline {
+  color: #BDBDBD;
+}
+
+/* --- Theme Toggle & Selects --- */
+.braun-select-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.braun-label-inline {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.braun-select {
+  background-color: var(--bg-panel-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  height: 30px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+
+/* --- Main Layout Grid --- */
+.braun-body-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  border-bottom: 1px solid var(--border-line);
+}
+
+@media (max-width: 1060px) {
+  .braun-header-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .braun-utility-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .braun-top-controls.braun-tuning-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .braun-tuning-cluster {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .braun-preset-cluster {
+    width: 100%;
+  }
+  .braun-body-grid {
+    grid-template-columns: 1fr;
+  }
+  .braun-left-column {
+    border-right: none;
+    border-bottom: 1px solid var(--border-line);
+  }
+}
+
+/* --- Left Column: Scope & System --- */
+.braun-left-column {
+  border-right: 1px solid var(--border-line);
+  background-color: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+}
+
+.braun-scope-container {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.braun-scope-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.braun-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.braun-scope-modes {
+  display: flex;
+  gap: 4px;
+}
+
+.braun-mode-tab {
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 3px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.braun-mode-tab.is-active {
+  background-color: var(--text-primary);
+  color: var(--bg-panel);
+  border-color: var(--text-primary);
+}
+
+.braun-scope-bezel {
+  background-color: var(--bg-bezel);
+  border: 2px solid #000;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  height: 180px;
+}
+
+.braun-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* --- System Controls in Left Column --- */
+.braun-system-section {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.braun-knobs-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* --- Right Column: Synthesis & Generative Engines --- */
+.braun-right-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.braun-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-line);
+}
+
+.braun-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.braun-subtitle {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+[data-theme="dark"] .braun-subtitle,
+[data-theme="matte-black"] .braun-subtitle {
+  color: #BDBDBD;
+}
+
+/* --- Solar 42n Twin Drone Voices Grid --- */
+.braun-drones-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .braun-drones-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.braun-drone-card {
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.braun-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.braun-wave-toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.braun-wave-btn {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.braun-wave-btn.is-active {
+  background-color: var(--text-primary);
+  color: var(--bg-panel);
+}
+
+/* --- Solar 42n Quick-Snap Tuning Buttons & Knobs Grid --- */
+.braun-drone-snap-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  padding: 6px 0 4px;
+  border-top: 1px solid var(--border-line);
+}
+
+.braun-drone-knobs-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  align-items: flex-start;
+  justify-items: center;
+}
+
+.braun-drone-level-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-subtle);
+  margin-top: 2px;
+}
+
+.braun-snap-toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.braun-snap-btn {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  color: var(--text-secondary);
+  font-size: 8.5px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2.5px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.12s ease;
+}
+
+.braun-snap-btn:hover {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.braun-snap-btn.is-active {
+  background-color: var(--bg-panel);
+  color: var(--text-primary);
+  border-color: var(--braun-orange);
+}
+
+.braun-snap-btn.is-active .braun-led {
+  background-color: var(--braun-orange);
+  box-shadow: 0 0 5px var(--braun-orange);
+}
+
+.braun-drone-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.braun-drone-status-btn.is-active {
+  background-color: var(--braun-orange);
+  color: #FFF;
+  border-color: var(--braun-orange);
+}
+
+.braun-drone-status-btn.is-active .braun-led {
+  background-color: #FFF;
+}
+
+/* --- Eno Asynchronous Phase Loops Panel --- */
+.braun-loops-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.braun-loop-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  padding: 8px 12px;
+  border-radius: 3px;
+}
+
+.braun-loop-id {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
+  width: 45px;
+}
+
+.braun-loop-note {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  width: 40px;
+}
+
+.braun-loop-bar-container {
+  flex: 1;
+  height: 6px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.braun-loop-progress {
+  height: 100%;
+  width: 0%;
+  background-color: var(--braun-orange);
+  transition: width 0.05s linear;
+}
+
+.braun-loop-period {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  width: 50px;
+  text-align: right;
+}
+
+/* --- Performance Deck: 2x5 Chords Matrix & Braun AS 42 Vector Touchpad --- */
+.braun-play-section {
+  padding: 16px 24px;
+  background-color: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.braun-performance-split {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 1040px) {
+  .braun-performance-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.braun-chord-deck,
+.braun-vector-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: var(--panel-radius);
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.braun-deck-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-line);
+}
+
+.braun-badge {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+.braun-chord-macros-grid,
+.braun-chord-macros-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(2, 72px);
+  height: 152px;
+  min-height: 152px;
+  max-height: 152px;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 680px) {
+  .braun-chord-macros-grid,
+  .braun-chord-macros-row {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(6, 68px);
+    height: auto;
+    min-height: auto;
+    max-height: none;
+  }
+  .braun-chord-macro-btn {
+    height: 68px;
+    min-height: 68px;
+    max-height: 68px;
+  }
+}
+
+.braun-chord-macro-btn {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  padding: 5px 6px 4px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  height: 72px;
+  min-height: 68px;
+  max-height: 72px;
+  box-sizing: border-box;
+  gap: 2px;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.braun-chord-macro-btn:hover {
+  background-color: var(--bg-app);
+  border-color: var(--text-primary);
+}
+
+.braun-chord-macro-btn.is-active,
+.braun-chord-macro-btn:active {
+  background-color: var(--text-primary);
+  color: var(--bg-panel);
+  border-color: var(--text-primary);
+  transform: translateY(1px);
+}
+
+.braun-chord-macro-btn.is-active .braun-chord-desc,
+.braun-chord-macro-btn:active .braun-chord-desc {
+  color: var(--bg-app);
+}
+
+.braun-chord-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.braun-chord-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 18px);
+}
+
+.braun-chord-shortcut {
+  font-size: 8.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 1px 4px;
+  line-height: 1.1;
+  min-width: 14px;
+  text-align: center;
+}
+
+.braun-chord-macro-btn:hover .braun-chord-shortcut {
+  background-color: var(--bg-panel);
+  border-color: var(--text-secondary);
+}
+
+.braun-chord-macro-btn.is-active .braun-chord-shortcut,
+.braun-chord-macro-btn:active .braun-chord-shortcut {
+  background-color: var(--braun-orange);
+  color: #FFF;
+  border-color: var(--braun-orange);
+}
+
+.braun-chord-desc {
+  font-size: 8px;
+  color: var(--text-secondary);
+  line-height: 1.22;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  word-break: break-word;
+  padding-bottom: 2px;
+}
+
+[data-theme="dark"] .braun-chord-macro-btn,
+[data-theme="matte-black"] .braun-chord-macro-btn {
+  background-color: #212327;
+  border-color: #3A3D44;
+}
+
+[data-theme="dark"] .braun-chord-macro-btn:hover,
+[data-theme="matte-black"] .braun-chord-macro-btn:hover {
+  background-color: #2B2E33;
+  border-color: #F0F0F0;
+}
+
+[data-theme="dark"] .braun-chord-title,
+[data-theme="matte-black"] .braun-chord-title {
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .braun-chord-desc,
+[data-theme="matte-black"] .braun-chord-desc {
+  color: #BDBDBD;
+}
+
+[data-theme="dark"] .braun-chord-shortcut,
+[data-theme="matte-black"] .braun-chord-shortcut {
+  background-color: #2D3036;
+  color: #F0F0F0;
+  border-color: #484C55;
+}
+
+[data-theme="dark"] .braun-chord-macro-btn.is-active .braun-chord-title,
+[data-theme="matte-black"] .braun-chord-macro-btn.is-active .braun-chord-title,
+[data-theme="dark"] .braun-chord-macro-btn:active .braun-chord-title,
+[data-theme="matte-black"] .braun-chord-macro-btn:active .braun-chord-title {
+  color: #141517;
+}
+
+[data-theme="dark"] .braun-chord-macro-btn.is-active .braun-chord-desc,
+[data-theme="matte-black"] .braun-chord-macro-btn.is-active .braun-chord-desc,
+[data-theme="dark"] .braun-chord-macro-btn:active .braun-chord-desc,
+[data-theme="matte-black"] .braun-chord-macro-btn:active .braun-chord-desc {
+  color: #2C2E33;
+}
+
+/* --- Braun AS 42 Precision Vector Touchpad Surface --- */
+.braun-vector-pad-assembly {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.braun-vector-pad-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  outline: none;
+}
+
+.braun-vector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+.braun-vector-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.braun-vector-axis-meta {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.braun-vector-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.braun-vector-mini-btn {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 3px 8px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.braun-vector-mini-btn:hover {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.braun-vector-mini-btn.is-active {
+  background-color: var(--braun-orange);
+  color: #FFF;
+  border-color: var(--braun-orange);
+}
+
+.braun-vector-mini-btn.is-active .braun-led {
+  background-color: #FFF;
+}
+
+.braun-vector-surface-box {
+  position: relative;
+  height: 152px;
+  min-height: 152px;
+  max-height: 152px;
+  background-color: var(--bg-bezel);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  transition: border-color 0.15s ease;
+}
+
+.braun-vector-surface-box.is-active {
+  border-color: var(--braun-orange);
+  box-shadow: inset 0 0 12px rgba(238, 89, 43, 0.25);
+}
+
+.braun-vector-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.braun-vector-axis-label {
+  position: absolute;
+  font-size: 8px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.90);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  text-transform: uppercase;
+  z-index: 2;
+}
+
+.braun-vector-axis-label.label-x-min { bottom: 4px; left: 8px; }
+.braun-vector-axis-label.label-x-max { bottom: 4px; right: 8px; }
+.braun-vector-axis-label.label-y-max { top: 4px; left: 8px; }
+.braun-vector-axis-label.label-y-min { bottom: 4px; left: 50%; transform: translateX(-50%); }
+
+.braun-vector-readout,
+.braun-chord-readout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+  height: 24px;
+  box-sizing: border-box;
+}
+
+.braun-vector-coords,
+.braun-chord-coords {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.braun-vector-readout-val,
+.braun-chord-readout-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.braun-vector-readout-indicator,
+.braun-chord-readout-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* --- Chime Strip Deck --- */
+.braun-chime-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.braun-chime-strip {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.braun-chime-key {
+  flex: 1;
+  min-width: 42px;
+  height: 74px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-panel-inset) 100%);
+  border: 1px solid var(--border-line);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 4px;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.08s ease, background 0.08s ease;
+  position: relative;
+}
+
+.braun-chime-key > * {
+  pointer-events: none;
+}
+
+.braun-chime-key:hover {
+  border-color: var(--text-muted);
+}
+
+.braun-chime-key.is-pressed,
+.braun-chime-key.is-active {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  transform: translateY(2px);
+}
+
+.braun-key-indicator {
+  width: 12px;
+  height: 3px;
+  background-color: var(--border-line);
+  border-radius: 1px;
+}
+
+.braun-chime-key.is-pressed .braun-key-indicator,
+.braun-chime-key.is-active .braun-key-indicator {
+  background-color: var(--braun-orange);
+  box-shadow: 0 0 6px var(--braun-orange);
+}
+
+.braun-key-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.braun-key-name {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.braun-key-degree {
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.braun-chime-key.is-pressed .braun-key-degree,
+.braun-chime-key.is-active .braun-key-degree {
+  color: var(--bg-panel);
+}
+
+.braun-key-shortcut {
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background-color: var(--bg-panel-inset);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 1px 4px;
+  line-height: 1.1;
+  min-width: 14px;
+  text-align: center;
+}
+
+[data-theme="dark"] .braun-chime-key,
+[data-theme="matte-black"] .braun-chime-key {
+  background: linear-gradient(180deg, #25282D 0%, #1A1C1F 100%);
+  border-color: #3A3D44;
+}
+
+[data-theme="dark"] .braun-chime-key:hover,
+[data-theme="matte-black"] .braun-chime-key:hover {
+  background: #2C2F36;
+  border-color: #F0F0F0;
+}
+
+[data-theme="dark"] .braun-key-name,
+[data-theme="matte-black"] .braun-key-name {
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .braun-key-degree,
+[data-theme="matte-black"] .braun-key-degree {
+  color: #BDBDBD;
+}
+
+[data-theme="dark"] .braun-key-shortcut,
+[data-theme="matte-black"] .braun-key-shortcut {
+  background-color: #2B2E34;
+  color: #F0F0F0;
+  border-color: #484C55;
+}
+
+[data-theme="dark"] .braun-key-indicator,
+[data-theme="matte-black"] .braun-key-indicator {
+  background-color: #555963;
+}
+
+[data-theme="dark"] .braun-chime-key.is-pressed .braun-key-name,
+[data-theme="matte-black"] .braun-chime-key.is-pressed .braun-key-name,
+[data-theme="dark"] .braun-chime-key.is-active .braun-key-name,
+[data-theme="matte-black"] .braun-chime-key.is-active .braun-key-name {
+  color: #141517;
+}
+
+[data-theme="dark"] .braun-chime-key.is-pressed .braun-key-degree,
+[data-theme="matte-black"] .braun-chime-key.is-pressed .braun-key-degree,
+[data-theme="dark"] .braun-chime-key.is-active .braun-key-degree,
+[data-theme="matte-black"] .braun-chime-key.is-active .braun-key-degree {
+  color: #2C2E33;
+}
+
+[data-theme="dark"] .braun-chime-key.is-pressed .braun-key-shortcut,
+[data-theme="matte-black"] .braun-chime-key.is-pressed .braun-key-shortcut,
+[data-theme="dark"] .braun-chime-key.is-active .braun-key-shortcut,
+[data-theme="matte-black"] .braun-chime-key.is-active .braun-key-shortcut {
+  background-color: var(--braun-orange);
+  color: #FFF;
+  border-color: var(--braun-orange);
+}
+
+/* --- Rotary Knob Component Styling --- */
+.braun-knob-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.braun-knob-wrapper:focus-visible .braun-knob-cap {
+  outline: 2px solid var(--braun-orange);
+}
+
+.braun-knob-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.braun-knob-assembly {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.braun-knob-small .braun-knob-assembly {
+  width: 42px;
+  height: 42px;
+}
+
+.braun-knob-large .braun-knob-assembly {
+  width: 64px;
+  height: 64px;
+}
+
+.braun-knob-scale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(140deg);
+}
+
+.braun-knob-track {
+  fill: none;
+  stroke: var(--knob-track);
+  stroke-width: 4;
+}
+
+.braun-knob-fill {
+  fill: none;
+  stroke: var(--knob-fill);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.04s linear;
+}
+
+.braun-knob-cap {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--knob-cap);
+  border: 1px solid var(--knob-border);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.04s linear;
+}
+
+.braun-knob-small .braun-knob-cap {
+  width: 28px;
+  height: 28px;
+}
+
+.braun-knob-large .braun-knob-cap {
+  width: 46px;
+  height: 46px;
+}
+
+.braun-knob-indicator {
+  position: absolute;
+  top: 3px;
+  width: 2px;
+  height: 8px;
+  background-color: var(--knob-indicator);
+  border-radius: 1px;
+}
+
+.braun-knob-small .braun-knob-indicator {
+  height: 6px;
+}
+
+.braun-knob-large .braun-knob-indicator {
+  height: 10px;
+}
+
+.braun-knob-value-display {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+  text-align: center;
+  min-width: 44px;
+}
+
+.braun-knob-unit {
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.braun-knob-direct-input {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  width: 48px;
+  text-align: center;
+  background: var(--bg-panel-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-line);
+  border-radius: 2px;
+  padding: 1px;
+}
+
+/* --- Footer / Manifesto --- */
+.braun-footer {
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-panel);
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.braun-footer a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
