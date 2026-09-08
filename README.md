@@ -4,8 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-black?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Web Audio API](https://img.shields.io/badge/Web%20Audio-100%25%20Client--Side-4A4A4A?style=for-the-badge)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 
-> **"Weniger, aber besser"** — Dieter Rams Functionalist Ambient Instrument.
-> A microtonal generative synthesizer inspired by **Harold Budd**, **Brian Eno**, and the **Elta Solar 42n**.
+> **A Dieter Rams functionalist digital-analog ambient instrument and microtonal drone synthesizer.**
+> Inspired by **Harold Budd**, **Brian Eno**, and the **Elta Solar 42n**.
 
 ---
 
@@ -15,131 +15,127 @@
 
 ---
 
-## Overview
+## 1. Acoustic & DSP Architecture
 
-The **BRAUN AS 42** merges mid-century German industrial functionalism with deep acoustic and generative synthesis. It unites four distinct ambient sound traditions into a single tactile, calibrated instrument:
+The BRAUN AS 42 synthesizes three complementary ambient acoustic traditions into a cohesive tactile instrument:
 
-1. **Harold Budd "Soft Pedal" Felt Piano & Chimes:**
-   - Physical felt-hammer transient modeling with pink noise impulse excitation.
-   - 24dB steep lowpass filter damping mimicking una corda soft pedal play.
-   - Register-dependent acoustic formant filtering across bass, mid, and treble ranges.
-   - Natural sympathetic string resonance network and subtle golden-ratio micro-detuning.
-2. **Brian Eno Asynchronous Phase Loops & Shimmer Tape Diffusion:**
-   - 4 tape loops cycling at coprime prime intervals (13.7s, 17.3s, 21.1s, 26.9s) creating non-repeating ambient counterpoint.
-   - Stereo polyrhythmic tape delay (3:2 ratio) with oversampled tape saturation, head-loss damping, capstan flutter, and tape wow.
-   - Octave-up shimmer reverb bloom (+12 semitone real-time dual-delay pitch shifter) with infinite freeze and automatic input ducking.
-3. **Elta Solar 42n Microtonal Twin-Oscillator Drones:**
-   - Dual microtonal drone voices with sub-hertz continuous beating (0.00–5.00 Hz).
-   - One-click Dieter Rams quick-snap harmonic tuning (Sub Bass, Deep Tonic, Warm Root, Octave Up; Perfect 5th, Sus 4th, Major 9th, Beating Unison).
-   - Non-linear West Coast wavefolder and 4-pole resonant ladder lowpass filter.
-4. **Vangelis Yamaha CS-80 Brass Architecture:**
-   - Dual detuned pulse/saw oscillators with rich brass envelope swell and singing filter resonance.
-   - Signature *Blade Runner* and *Tears in Rain* harmonic clusters.
+### 1.1 Harold Budd: Playable Synth & "Soft Pedal" Felt Piano
+* **Multisampled / Acoustic Blend Modeling (Teenage Engineering EP-1320 Style):** Emulates the rich, cohesive acoustic chord blending of multisampled acoustic instruments:
+  * **Register-Dependent Acoustic Character:**
+    * *Bass octaves 1–2:* Deeper sub-weight, heavier felt hammer thud (110–220 Hz impact), and slower string damping (long ringing resonance).
+    * *Mid octaves 3–4:* Rich resonant spruce soundboard wooden body formant (~480–610 Hz peaking filter) and warm singing sustain.
+    * *Treble octaves 5–6:* Brighter crystalline acoustic bell presence, snappy filter attack, and quicker decay.
+  * **Natural Sympathetic String Resonance & Micro-Dispersion:** Subtle golden-ratio micro-detuning dispersion in cents (±1.4 cents) and overtone spreading across voices prevents synthetic comb-filtering or sterile clone phasing, causing chord clusters to coalesce into a singular acoustic body.
+* **Waveform Select Toggles:** Select core timbre between **FELT** (intimate felt piano: sine + triangle overtone), **SINE** (crystalline acoustic chime / bell), **SAW** (band-limited warm analog synth brass/pad), and **SQR** (hollow vintage reed / pulse organ).
+* **Felt Hammer Transient:** Soft physical impact of a felt-covered wooden hammer using an exponential pink-weighted noise burst passed through a resonant bandpass impulse resonator (zero GC allocation).
+* **Steep Warm 24dB Damping:** Cascaded dual biquad lowpass filter mimicking Harold Budd's signature soft pedal (una corda) dampening. On strike, the cutoff opens quickly before exponentially decaying down to the fundamental with click-free voice stealing.
+* **4x Anti-Aliased Saturation:** Internal soft clipper with 4x polyphase oversampling eliminates high-frequency digital foldover distortion.
+* **Dynamic String Tail:** Low notes ring for 6–10 seconds, while high chime registers decay with crystalline clarity.
 
----
+### 1.2 Brian Eno: Asynchronous Phase Loops & Shimmer Tape Diffusion
+* **Music for Airports Tape Loops:** 4 asynchronous loop tracks running at coprime prime durations (13.7s, 17.3s, 21.1s, 26.9s). Because the periods are incommensurable, the melodic counterpoint continuously drifts and never repeats. Dynamic pitch readouts display active notes (e.g. C3, G4, E5, B5).
+* **Stereo Tape Delay with Wow & Flutter:** Polyrhythmic cross-coupled delay lines (3:2 stereo ratio, up to 3.5s) with 4x oversampled tape saturation, high-frequency tape head loss damping (3600 Hz), and dual-frequency mechanical wow (~0.38 Hz) and capstan flutter (~5.8 Hz).
+* **Octave-Up Shimmer Reverb Bloom:** Features an algorithmic high-diffusion reverb convolver with debounced RT60 tuning coupled with a clickless dual-delay real-time pitch shifter (+12 semitones / 2.0x frequency) in a feedback loop.
+* **Infinite Ambient Freeze with Input Ducking:** Dual-delay recirculation locks to 0.992 gain with automatic input ducking and isolated output gating (no slapback echo leak when disengaged).
+* **Isolated Send Bus Architecture:** Auxiliary effects run dry-isolated (`dryLevel: 0.0`) so the master bus receives pristine dry signal at unity without phase cancellation or limiter overdrive.
 
-## Key Features
-
-- **Zero-Dependency Web Audio DSP:** 100% client-side synthesis. No external audio libraries, frameworks, or backend servers needed.
-- **Dieter Rams Industrial Design:**
-  - Aluminum light finish (`#ECEBE4`) and Anthracite dark finish (`#18191B`).
-  - Signal orange (`#EE592B`) master tactile controls.
-  - 32 machined rotary knobs with 10x micro-tuning sensitivity (hold `Shift`), mouse wheel control, and double-click numerical entry.
-  - Master calibrated reset switch with smooth knob transitions.
-- **2×6 Chord Cluster Matrix:** 12 signature ambient chords with click-and-hold sustain and keyboard hotkeys (`1`–`6`, `7`–`=`).
-- **Braun AS 42 Vector Touchpad:** 2D XY surface for real-time glide modulation of delay rate, stereo balance, space reverb bloom, and feedback wash.
-- **60fps Phosphor Oscilloscope:** High-persistence CRT display supporting **OSC** (time domain with analog edge trigger), **FFT** (spectral analyzer), and **XY PHASE** (Lissajous stereo goniometer).
-- **Studio WAV Recorder:** One-click lossless 16-bit 48kHz PCM WAV recording directly from the master bus.
-- **Poisson Generative Rain Engine:** Generative stochastic notes triggering according to an exponential Poisson distribution ($\Delta t = -\frac{\ln(1 - U)}{\lambda}$).
+### 1.3 Elta Solar 42n: Microtonal Twin-Oscillator Drone Voices
+* **Calibrated Output Volume Balancing:** Drone bus gain is calibrated to -8.5dB relative to the keys bus, ensuring the twin drones serve as a warm, lush, non-overpowering ambient underbed while piano chords and chime melodies sit distinctly on top with crystalline clarity.
+* **Dieter Rams Quick-Snap Tuning Buttons:** Instant one-click microtonal and harmonic drone snapping without manual knob hunting:
+  * *Voice 1 (Tonic):* **SUB BASS** (C1 / ~32.7 Hz), **DEEP TONIC** (C2 / ~65.4 Hz), **WARM ROOT** (C3 / ~130.8 Hz), **OCTAVE UP** (C4 / ~261.6 Hz).
+  * *Voice 2 (Dominant / Harmony):* **PERFECT 5TH** (3:2 ratio), **SUS 4TH** (4:3 ratio), **MAJOR 9TH** (9:8 ratio), **BEATING UNISON** (unison with ~0.35 Hz acoustic beat offset).
+  * Snap buttons automatically re-tune relative to active root note and modal harmony.
+* **Twin Beatable Oscillators:** Voices 1 and 2 feature independent dual oscillators (Osc A & Osc B) with Saw, Square, Sine, Triangle, and Warm Analog core waveforms.
+* **Continuous Sub-Hertz Beating Control:** Dedicated continuous Hz offset dial (0.00 to 5.00 Hz) and fine detune (cents) to create slow, hypnotic, organic acoustic interference waves.
+* **West-Coast Wavefolder:** Multi-stage wavefolding transfer function ($y = \tanh(\sin(0.5\pi D x) - F \sin(1.5\pi D x))$) folding waveform peaks inward with 4x oversampled anti-aliasing.
+* **4-Pole Resonant Ladder Lowpass Filter:** Dual cascaded biquad filters with resonance up to self-oscillation and slow breathing LFO drift.
 
 ---
 
-## Quick Start (Running Locally)
+## 2. Foolproof Harmonic Interface for Non-Theorists
 
-### Option 1: 1-Click Windows Launcher (`.bat`)
+Designed for musicians who create intuitively by ear without formal music theory:
+* **Curated Modal Spaces:**
+  * `Budd Felt Pentatonic` (Major pentatonic with no harsh tritones — everything sounds tranquil and consonant)
+  * `Lydian Ambient` (Brian Eno floating celestial mood with raised 4th / #11)
+  * `Dorian Mystic` (Melancholic, contemplative modal mood)
+  * `Kankyo Ongaku` (Hiroshi Yoshimura Japanese environmental post-card pentatonic)
+  * `Aeolian Midnight` (Deep nocturnal natural minor)
+  * `Budd Hexatonic` (Harold Budd signature open chord spacing with singing 4th)
+  * `Weightless Whole Tone` (Dreamlike suspension)
+* **Real-time Scale Quantizer:** Any key pressed or generative trigger is quantized to the active harmonic mode.
+* **Harold Budd Chord Cluster Macros:**
+  * **PAVILION SUS:** Open suspended 1 - 5 - 9 - 10 voicing.
+  * **PLATEAUX MAJ9:** Lush felt piano major 9th spread.
+  * **DEEP DRONE 5TH:** Wide spatial fifths and octaves.
+  * **ETHEREAL 11TH:** Brian Eno celestial shimmer voicing.
+  * **LYDIAN CASCADE:** Sparkling #11 cluster.
+  * **SOLAR BEATING:** Microtonally detuned acoustic beating stack.
+* **Harold Budd Poisson Auto-Evolve Engine:** Simulates organic contemplative piano playing where notes fall like rain droplets with inter-onset intervals following an exponential Poisson distribution:
+  $$\Delta t = -\frac{\ln(1 - U)}{\lambda}$$
+
+---
+
+## 3. Dieter Rams / Braun Industrial Design
+
+* **"Weniger, aber besser" (Less, but better):**
+  * Clean, geometric Swiss typography with generous tracking.
+  * Matte anodized aluminum chassis (`#ECEBE4`) and toggleable Braun dark anthracite finish (`#18191B`).
+  * Iconic Braun signal orange (`#EE592B`) master switch and accent LEDs.
+  * Machined aluminum rotary knobs with radial indicator ticks, precision drag sensitivity (holding `Shift` engages 10x micro-tuning), mouse wheel support, and double-click direct numerical entry.
+* **Vector CRT Phosphor Display:**
+  * 60fps canvas oscilloscope with phosphor persistence afterglow decay and analog zero-crossing edge trigger stabilization.
+  * 3 operational modes: **OSC** (Time-domain waveform trace), **FFT** (Spectral bar analyzer), and **XY PHASE** (Lissajous stereo goniometer).
+* **Lossless Studio WAV Recorder:**
+  * Direct 16-bit 48kHz PCM WAV audio capture from the master bus with isolated zero-gain sink (no buffer delay feedback).
+  * One-click download of studio-quality uncompressed WAV recordings of ambient sessions.
+
+---
+
+## 4. Getting Started & Running Locally
+
+### Option A: 1-Click Windows Launcher (`.bat`)
 Simply double-click:
 ```bat
 start.bat
 ```
-*(or `run.bat`)* — it automatically detects Node.js (or Python), launches the local static server on `http://localhost:3000`, and opens your default browser!
+*(or `run.bat`)* — it automatically checks for Node.js (or Python), launches the local static server on `http://localhost:3000`, and opens your default browser!
 
-### Option 2: Node.js CLI
+### Option B: Node.js Terminal
+1. **Start the local server:**
+   ```bash
+   npm start
+   # or: node server.js
+   # or: python -m http.server 3000
+   ```
+2. **Open in your web browser:**
+   ```
+   http://localhost:3000
+   ```
+3. **Turn on the instrument:** Click the orange **POWER ON** button at the top right to start the Web Audio API context.
+
+### Deploying to GitHub Pages
+To update the live version hosted at [`https://sneed-and-feed.github.io/`](https://sneed-and-feed.github.io/):
+```bat
+deploy-pages.bat
+# or: npm run deploy
+```
+This automatically syncs the latest files to `sneed-and-feed.github.io`, commits, and pushes to GitHub Pages.
+Additionally, this repository includes `.github/workflows/deploy.yml` which deploys automatically on every push to `main`.
+
+### Keyboard Shortcuts & Gestures
+* **A, S, D, F, G, H, J, K, L, ;, ', Z, X, C, V:** Play scale degrees on the harmonic touch strip (click-free with key repeat protection and continuous hold sustain).
+* **Click & Drag Glissando:** Slide finger or mouse horizontally across chime keys for expressive harp/chime glissandi. Each entered key articulates expressively with velocity sensitivity while smoothly releasing previous sounding notes. Holding in place maintains continuous pedal sustain until mouse release.
+* **1 to 9, 0, -, =:** Trigger Harold Budd Chord Cluster Macros (12 curated modal voicings with subtle humanized strum and hold sustain).
+* **Spacebar:** Toggle Infinite Reverb Freeze.
+
+---
+
+## 5. Verification & Testing
+
+The project includes an extensive automated test suite verifying scale quantizers, Poisson point process distributions, phase loop engines, Fourier series anti-aliasing tables, pitch shifter crossfades, freeze gating, wavefolder transfer curves, mouse click & drag glissandi, and anti-clipping bus headroom staging:
+
 ```bash
-# Clone the repository
-git clone https://github.com/sneed-and-feed/sneed-and-feed.github.io.git
-cd sneed-and-feed.github.io
-
-# Start the zero-dependency server
-npm start
-
-# Visit in browser
-http://localhost:3000
+npm test
 ```
-
----
-
-## Keyboard Shortcuts
-
-| Key(s) | Action |
-| :--- | :--- |
-| **`A` `S` `D` `F` `G` `H` `J` `K` `L` `;` `'` `Z` `X` `C` `V`** | Play notes on the harmonic chime strip (hold for sustain, release to damp) |
-| **`1` to `6`** / **`7` to `=`** | Trigger 2×6 Chord Cluster voicings (hold for sustained pad) |
-| **`Spacebar`** | Toggle Infinite Ambient Reverb Freeze |
-| **Mouse Click + Drag** | Glissando swipe across the chime keys |
-| **`Shift` + Knob Drag** | 10× Precision fine-tuning adjustment |
-| **Double Click on Knob** | Type exact numerical value |
-
----
-
-## Harmonic Modes
-
-Intuitive modal spaces curated for effortless improvisation without theory prerequisites:
-- **Budd Felt Pentatonic:** Consonant, pure major pentatonic with zero harsh tritones.
-- **Lydian Ambient:** Brian Eno celestial floating harmony with raised 4th (#11).
-- **Dorian Mystic:** Deep contemplative minor mood.
-- **Kankyo Ongaku:** Hiroshi Yoshimura Japanese environmental ambient.
-- **Aeolian Midnight:** Nocturnal natural minor.
-- **Spirited Modal / Avalon:** Cinematic emotional suspended harmonies.
-- **Weightless Whole Tone:** Dreamlike suspension.
-
----
-
-## Project Structure
-
-```
-├── .github/workflows/deploy.yml   # GitHub Actions automated Pages deployment
-├── .nojekyll                      # Prevents Jekyll asset processing
-├── index.html                     # Braun AS 42 interface and layout
-├── start.bat                      # 1-click Windows server and browser launcher
-├── run.bat                        # Shortcut alias to start.bat
-├── server.js                      # Zero-dependency local static HTTP server
-├── package.json                   # Project metadata and test runner scripts
-├── css/
-│   └── style.css                  # Dieter Rams functionalist UI styles & animations
-└── js/
-    ├── app.js                     # Main application bootstrap & coordination
-    ├── audio/                     # Web Audio DSP synthesis engine
-    │   ├── context.js             # AudioContext manager & graph routing
-    │   ├── felt-piano.js          # Physical felt hammer & acoustic modeling
-    │   ├── phase-loops.js         # Brian Eno coprime tape loops
-    │   ├── poisson-engine.js      # Stochastic Poisson note generator
-    │   ├── tape-delay.js          # Polyrhythmic tape delay with flutter & wow
-    │   ├── shimmer-reverb.js      # Algorithmic reverb + pitch shift bloom
-    │   ├── solar-drone.js         # Elta Solar 42n microtonal twin drone voices
-    │   ├── cs80-voice.js          # Vangelis CS-80 brass architecture
-    │   ├── wavefolder.js          # Anti-aliased West Coast wavefolding DSP
-    │   ├── recorder.js            # 16-bit 48kHz lossless WAV encoder
-    │   ├── scales.js              # Modal harmony & chord cluster definitions
-    │   └── wavetables.js          # Band-limited Fourier wavetable oscillators
-    └── ui/                        # Tactile UI components
-        ├── knob.js                # Dieter Rams precision rotary dials
-        ├── vector-pad.js          # 2D XY touch performance pad
-        ├── chime-strip.js         # Chromatic touch & glissando strip
-        └── oscilloscope.js        # CRT green phosphor oscilloscope & FFT
-```
-
----
-
-## License
-
-Released under the [MIT License](LICENSE). Inspired by the timeless industrial design of **Dieter Rams** and the ambient audio innovations of **Harold Budd**, **Brian Eno**, and **Elta Music**.
+All 112 unit and integration tests run with Node's built-in test runner.
