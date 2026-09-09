@@ -74,7 +74,7 @@ Designed for musicians who create intuitively by ear without formal music theory
   * **PAVILION SUS:** Open suspended 1 - 5 - 9 - 10 voicing.
   * **PLATEAUX MAJ9:** Lush felt piano major 9th spread.
   * **DEEP DRONE 5TH:** Wide spatial fifths and octaves.
-  * **ETHEREAL 11TH:** Brian Eno celestial shimmer voicing.
+  * **ETHEREAL 11TH:** Brian Eno celestial shimmer voicing (1 - 5 - 7 - 9 - 11 - 15ma) with luminous Major 7th and high octave bloom.
   * **LYDIAN CASCADE:** Sparkling #11 cluster.
   * **SOLAR BEATING:** Microtonally detuned acoustic beating stack.
 * **Harold Budd Poisson Auto-Evolve Engine:** Simulates organic contemplative piano playing where notes fall like rain droplets with inter-onset intervals following an exponential Poisson distribution:
@@ -134,9 +134,10 @@ This automatically syncs the latest files to `sneed-and-feed.github.io`, commits
 Additionally, this repository includes `.github/workflows/deploy.yml` which deploys automatically on every push to `main`.
 
 ### Keyboard Shortcuts & Gestures
-* **A, S, D, F, G, H, J, K, L, ;, ', Z, X, C, V:** Play scale degrees on the harmonic touch strip (click-free with key repeat protection and continuous hold sustain).
+* **A, S, D, F, G, H, J, K, L, ;, ':** Play the 11 modal scale degrees on the serene single-row harmonic chime strip (spanning octaves 3 through 5, click-free with key repeat protection and continuous hold sustain). Additional bass chime shortcuts `Z, X, C, V` are also supported.
 * **Click & Drag Glissando:** Slide finger or mouse horizontally across chime keys for expressive harp/chime glissandi. Each entered key articulates expressively with velocity sensitivity while smoothly releasing previous sounding notes. Holding in place maintains continuous pedal sustain until mouse release.
-* **1 to 9, 0, -, =:** Trigger Harold Budd Chord Cluster Macros (12 curated modal voicings with subtle humanized strum and hold sustain).
+* **1 to 9, 0, -, =:** Trigger Harold Budd Chord Cluster Macros (12 curated modal voicings with hold sustain).
+* **STRUM Speed Switch (SLOW · MED · FAST · INSTANT):** 4-position hardware toggle switch controlling the chord cluster trigger speed (`SLOW` [120ms strum], `MED` [50ms strum], `FAST` [20ms strum], and `INSTANT` [0ms simultaneous block]). Designed in accordance with Dieter Rams principles to prevent abrupt chord disruption over slower ambient drones.
 * **Spacebar:** Toggle Infinite Reverb Freeze.
 
 ---
