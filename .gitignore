@@ -1,0 +1,8 @@
+# OS & temporary files
+.DS_Store
+Thumbs.db
+*.log
+
+# Distribution archives
+releases/
+*.zip
