@@ -13,13 +13,17 @@
  * @returns {number}
  */
 export function applySmoothBoundaryKnee(y, knee = 0.70) {
-  if (y > knee) {
-    const u = (y - knee) / (1 - knee);
-    return knee + (1 - knee) * (u + u * u - u * u * u);
-  } else if (y < -knee) {
+  if (!Number.isFinite(y)) return 0.0;
+  if (y >= 1.0) return 1.0;
+  if (y <= -1.0) return -1.0;
+  const k = Number.isFinite(knee) ? Math.max(0.20, Math.min(0.95, knee)) : 0.70;
+  if (y > k) {
+    const u = (y - k) / (1 - k);
+    return k + (1 - k) * (u + u * u - u * u * u);
+  } else if (y < -k) {
     const absY = -y;
-    const u = (absY - knee) / (1 - knee);
-    return -(knee + (1 - knee) * (u + u * u - u * u * u));
+    const u = (absY - k) / (1 - k);
+    return -(k + (1 - k) * (u + u * u - u * u * u));
   }
   return y;
 }
@@ -34,15 +38,52 @@ export function applySmoothBoundaryKnee(y, knee = 0.70) {
  * @returns {Float32Array}
  */
 export function makeFreezeLimiterCurve(samples = 2048, maxLevel = 0.88, knee = 0.70) {
-  const curve = new Float32Array(samples);
-  const half = (samples - 1) / 2;
-  const k = Math.max(0.20, Math.min(0.95, knee));
-  const bound = Math.max(0.50, Math.min(0.95, maxLevel));
+  const n = Number.isFinite(samples) && samples >= 2 ? Math.floor(samples) : 2048;
+  const curve = new Float32Array(n);
+  const half = (n - 1) / 2;
+  const k = Number.isFinite(knee) ? Math.max(0.20, Math.min(0.95, knee)) : 0.70;
+  const bound = Number.isFinite(maxLevel) ? Math.max(0.50, Math.min(0.95, maxLevel)) : 0.88;
 
-  for (let i = 0; i < samples; i++) {
+  for (let i = 0; i < n; i++) {
     const x = (i - half) / half; // -1 to +1
     const scaled = x / bound;
     curve[i] = bound * applySmoothBoundaryKnee(scaled, k);
+  }
+
+  return curve;
+}
+
+/**
+ * Generate a transparent soft limiter transfer curve with C1-smooth boundary knee
+ * for the shimmer reverb pitch-shift feedback loop.
+ * Exhibits exact unity small-signal gain below knee * maxLevel, and smoothly compresses
+ * toward maxLevel with zero derivative at +/-maxLevel, preventing runaway high-octave
+ * feedback whistle, decimation ringing, and clipping crackle.
+ * @param {number} [samples=2048]
+ * @param {number} [maxLevel=0.85]
+ * @param {number} [knee=0.70]
+ * @returns {Float32Array}
+ */
+export function makeShimmerLimiterCurve(samples = 2048, maxLevel = 0.85, knee = 0.70) {
+  const n = Number.isFinite(samples) && samples >= 2 ? Math.floor(samples) : 2048;
+  const curve = new Float32Array(n);
+  const half = (n - 1) / 2;
+  const bound = Number.isFinite(maxLevel) ? Math.max(0.50, Math.min(1.0, maxLevel)) : 0.85;
+  const k = Number.isFinite(knee) ? Math.max(0.20, Math.min(0.95, knee)) : 0.70;
+  const threshold = k * bound;
+
+  for (let i = 0; i < n; i++) {
+    const x = (i - half) / half; // -1 to +1
+    const absX = Math.abs(x);
+    if (absX <= threshold) {
+      curve[i] = x;
+    } else if (absX < bound) {
+      const u = (absX - threshold) / (bound - threshold);
+      const shaped = threshold + (bound - threshold) * (u + u * u - u * u * u);
+      curve[i] = (x < 0 ? -1 : 1) * shaped;
+    } else {
+      curve[i] = (x < 0 ? -1 : 1) * bound;
+    }
   }
 
   return curve;
@@ -55,14 +96,25 @@ export function makeFreezeLimiterCurve(samples = 2048, maxLevel = 0.88, knee = 0
  * @returns {Float32Array}
  */
 export function makeSoftClipCurve(samples = 2048, drive = 1.5) {
-  const curve = new Float32Array(samples);
-  const half = (samples - 1) / 2;
-  const norm = Math.tanh(drive);
+  const n = Number.isFinite(samples) && samples >= 2 ? Math.floor(samples) : 2048;
+  const curve = new Float32Array(n);
+  const half = (n - 1) / 2;
+  const d = Number.isFinite(drive) ? Math.max(0, drive) : 1.5;
 
-  for (let i = 0; i < samples; i++) {
+  if (d <= 1e-4) {
+    for (let i = 0; i < n; i++) {
+      const x = (i - half) / half;
+      curve[i] = applySmoothBoundaryKnee(x, 0.70);
+    }
+    return curve;
+  }
+
+  const norm = Math.tanh(d);
+
+  for (let i = 0; i < n; i++) {
     const x = (i - half) / half; // -1 to +1
     // Hyperbolic tangent soft saturation smoothly normalized to unity bounds
-    const raw = Math.tanh(drive * x) / norm;
+    const raw = Math.tanh(d * x) / norm;
     // Apply C1 smooth boundary knee so derivative at +/-1.0 is exactly 0
     curve[i] = applySmoothBoundaryKnee(raw, 0.70);
   }
@@ -81,11 +133,12 @@ export function makeSoftClipCurve(samples = 2048, drive = 1.5) {
  * @returns {Float32Array}
  */
 export function makeLimiterCurve(samples = 2048, knee = 0.75) {
-  const curve = new Float32Array(samples);
-  const half = (samples - 1) / 2;
-  const k = Math.max(0.20, Math.min(0.95, knee));
+  const n = Number.isFinite(samples) && samples >= 2 ? Math.floor(samples) : 2048;
+  const curve = new Float32Array(n);
+  const half = (n - 1) / 2;
+  const k = Number.isFinite(knee) ? Math.max(0.20, Math.min(0.95, knee)) : 0.75;
 
-  for (let i = 0; i < samples; i++) {
+  for (let i = 0; i < n; i++) {
     const x = (i - half) / half; // -1 to +1
     curve[i] = applySmoothBoundaryKnee(x, k);
   }
@@ -102,16 +155,19 @@ export function makeLimiterCurve(samples = 2048, knee = 0.75) {
  * @returns {Float32Array}
  */
 export function makeWavefoldCurve(samples = 2048, drive = 1.8, fold = 0.6) {
-  const curve = new Float32Array(samples);
-  const half = (samples - 1) / 2;
+  const n = Number.isFinite(samples) && samples >= 2 ? Math.floor(samples) : 2048;
+  const curve = new Float32Array(n);
+  const half = (n - 1) / 2;
+  const d = Number.isFinite(drive) ? Math.max(0, drive) : 1.8;
+  const f = Number.isFinite(fold) ? Math.max(0, Math.min(2.0, fold)) : 0.6;
 
-  for (let i = 0; i < samples; i++) {
+  for (let i = 0; i < n; i++) {
     const x = (i - half) / half; // -1.0 to +1.0
-    const driven = x * drive;
+    const driven = x * d;
 
     // Folding formula combining sinusoidal inversion and second-stage fold
     const stage1 = Math.sin(Math.PI * 0.5 * driven);
-    const stage2 = stage1 - fold * Math.sin(Math.PI * 1.5 * driven);
+    const stage2 = stage1 - f * Math.sin(Math.PI * 1.5 * driven);
 
     // Soft limiting to guarantee no harsh clipping outside [-1, +1]
     const clamped = Math.tanh(stage2);
@@ -130,26 +186,28 @@ export function makeWavefoldCurve(samples = 2048, drive = 1.8, fold = 0.6) {
  * @returns {Float32Array}
  */
 export function makeTapeSaturationCurve(samples = 2048, warmth = 0.35) {
-  const curve = new Float32Array(samples);
-  const half = (samples - 1) / 2;
+  const n = Number.isFinite(samples) && samples >= 2 ? Math.floor(samples) : 2048;
+  const curve = new Float32Array(n);
+  const half = (n - 1) / 2;
+  const w = Number.isFinite(warmth) ? Math.max(0, Math.min(2.0, warmth)) : 0.35;
 
   // Transparent linear response at zero warmth
-  if (warmth <= 0.001) {
-    for (let i = 0; i < samples; i++) {
+  if (w <= 0.001) {
+    for (let i = 0; i < n; i++) {
       curve[i] = (i - half) / half;
     }
     return curve;
   }
 
   // Pre-calculate endpoint normalization factor so peak headroom is preserved at +/-1.0
-  const posDrive = 1.0 + warmth * 1.5;
-  const asymPos = 1.0 + warmth * 0.25;
+  const posDrive = 1.0 + w * 1.5;
+  const asymPos = 1.0 + w * 0.25;
   const maxOut = (2 / Math.PI) * Math.atan(posDrive * asymPos);
 
-  for (let i = 0; i < samples; i++) {
+  for (let i = 0; i < n; i++) {
     const x = (i - half) / half; // -1 to +1
     // Tape magnetic hysteresis simulation with asymmetrical 2nd harmonic warmth
-    const asym = x + warmth * 0.25 * x * x * Math.sign(x);
+    const asym = x + w * 0.25 * x * x * Math.sign(x);
     // Soft saturation knee with drive scaling
     const saturated = (2 / Math.PI) * Math.atan(posDrive * asym);
     // Normalized to unity peak bounds

@@ -25,8 +25,36 @@ export class TapeDelay {
     this._buildGraph();
   }
 
+  _nyquistCeiling() {
+    const sr = (this.ctx && Number.isFinite(this.ctx.sampleRate) && this.ctx.sampleRate > 0)
+      ? this.ctx.sampleRate
+      : 48000;
+    return Math.max(800, sr * 0.49);
+  }
+
+  _cancelAndAnchor(param, now, fallbackVal) {
+    if (!param) return;
+    let held = false;
+    if (typeof param.cancelAndHoldAtTime === 'function') {
+      try {
+        param.cancelAndHoldAtTime(now);
+        held = true;
+      } catch (e) {
+        held = false;
+      }
+    }
+    if (!held && typeof param.cancelScheduledValues === 'function') {
+      const cur = (typeof param.value === 'number' && Number.isFinite(param.value)) ? param.value : fallbackVal;
+      param.cancelScheduledValues(now);
+      if (typeof param.setValueAtTime === 'function' && Number.isFinite(cur)) {
+        param.setValueAtTime(cur, now);
+      }
+    }
+  }
+
   _buildGraph() {
     const ctx = this.ctx;
+    const nyquist = this._nyquistCeiling();
 
     this.input = ctx.createGain();
     this.output = ctx.createGain();
@@ -72,12 +100,13 @@ export class TapeDelay {
 
     // Tape head filters (High-cut tape warmth + low rumble cut)
     // Butterworth Q <= 0.707 eliminates resonant peaking in the recirculation feedback loop
+    const initTone = Math.min(3600, nyquist);
     this.filterL = ctx.createBiquadFilter();
     this.filterR = ctx.createBiquadFilter();
     this.filterL.type = 'lowpass';
     this.filterR.type = 'lowpass';
-    this.filterL.frequency.setValueAtTime(3600, ctx.currentTime);
-    this.filterR.frequency.setValueAtTime(3600, ctx.currentTime);
+    this.filterL.frequency.setValueAtTime(initTone, ctx.currentTime);
+    this.filterR.frequency.setValueAtTime(initTone, ctx.currentTime);
     if (this.filterL.Q && typeof this.filterL.Q.setValueAtTime === 'function') {
       this.filterL.Q.setValueAtTime(0.707, ctx.currentTime);
       this.filterR.Q.setValueAtTime(0.707, ctx.currentTime);
@@ -252,6 +281,7 @@ export class TapeDelay {
   }
 
   setTime(timeSeconds, isInstant = false) {
+    if (!Number.isFinite(timeSeconds)) return;
     const t = Math.max(0.015, Math.min(2.0, timeSeconds));
     if (Math.abs(this.delayTimeL - t) < 0.0005) return;
     const oldL = this.delayTimeL;
@@ -274,32 +304,8 @@ export class TapeDelay {
     this._hasSetTime = true;
 
     if (isLargeJump) {
-      if (typeof this.delayNodeL.delayTime.cancelAndHoldAtTime === 'function') {
-        try {
-          this.delayNodeL.delayTime.cancelAndHoldAtTime(now);
-          this.delayNodeR.delayTime.cancelAndHoldAtTime(now);
-        } catch (e) {
-          if (typeof this.delayNodeL.delayTime.cancelScheduledValues === 'function') {
-            const curL = this.delayNodeL.delayTime.value ?? oldL;
-            const curR = this.delayNodeR.delayTime.value ?? (oldL * 1.5);
-            this.delayNodeL.delayTime.cancelScheduledValues(now);
-            this.delayNodeR.delayTime.cancelScheduledValues(now);
-            if (typeof this.delayNodeL.delayTime.setValueAtTime === 'function') {
-              this.delayNodeL.delayTime.setValueAtTime(curL, now);
-              this.delayNodeR.delayTime.setValueAtTime(curR, now);
-            }
-          }
-        }
-      } else if (typeof this.delayNodeL.delayTime.cancelScheduledValues === 'function') {
-        const curL = this.delayNodeL.delayTime.value ?? oldL;
-        const curR = this.delayNodeR.delayTime.value ?? (oldL * 1.5);
-        this.delayNodeL.delayTime.cancelScheduledValues(now);
-        this.delayNodeR.delayTime.cancelScheduledValues(now);
-        if (typeof this.delayNodeL.delayTime.setValueAtTime === 'function') {
-          this.delayNodeL.delayTime.setValueAtTime(curL, now);
-          this.delayNodeR.delayTime.setValueAtTime(curR, now);
-        }
-      }
+      this._cancelAndAnchor(this.delayNodeL.delayTime, now, oldL);
+      this._cancelAndAnchor(this.delayNodeR.delayTime, now, oldL * 1.5);
     }
 
     if (isInstant) {
@@ -324,45 +330,23 @@ export class TapeDelay {
   }
 
   setDelayTime(timeMs, isInstant = false) {
+    if (!Number.isFinite(timeMs)) return;
     const sec = (typeof timeMs === 'number' && timeMs > 10) ? timeMs / 1000 : timeMs;
     return this.setTime(sec, isInstant);
   }
 
   setFeedback(fb) {
+    if (!Number.isFinite(fb)) return;
     this.feedback = Math.max(0.0, Math.min(0.92, fb));
     const shaperGain = this.shaperGain || 1.5173;
     const directFb = (this.feedback * 0.7) / shaperGain;
     const crossFb = (this.feedback * 0.3) / shaperGain;
     const now = this.ctx.currentTime;
 
-    let held = false;
-    if (typeof this.fbGainLL.gain.cancelAndHoldAtTime === 'function') {
-      try {
-        this.fbGainLL.gain.cancelAndHoldAtTime(now);
-        this.fbGainRR.gain.cancelAndHoldAtTime(now);
-        this.fbGainLR.gain.cancelAndHoldAtTime(now);
-        this.fbGainRL.gain.cancelAndHoldAtTime(now);
-        held = true;
-      } catch (e) {
-        held = false;
-      }
-    }
-    if (!held && typeof this.fbGainLL.gain.cancelScheduledValues === 'function') {
-      const curLL = this.fbGainLL.gain.value ?? directFb;
-      const curRR = this.fbGainRR.gain.value ?? directFb;
-      const curLR = this.fbGainLR.gain.value ?? crossFb;
-      const curRL = this.fbGainRL.gain.value ?? crossFb;
-      this.fbGainLL.gain.cancelScheduledValues(now);
-      this.fbGainRR.gain.cancelScheduledValues(now);
-      this.fbGainLR.gain.cancelScheduledValues(now);
-      this.fbGainRL.gain.cancelScheduledValues(now);
-      if (typeof this.fbGainLL.gain.setValueAtTime === 'function') {
-        this.fbGainLL.gain.setValueAtTime(curLL, now);
-        this.fbGainRR.gain.setValueAtTime(curRR, now);
-        this.fbGainLR.gain.setValueAtTime(curLR, now);
-        this.fbGainRL.gain.setValueAtTime(curRL, now);
-      }
-    }
+    this._cancelAndAnchor(this.fbGainLL.gain, now, directFb);
+    this._cancelAndAnchor(this.fbGainRR.gain, now, directFb);
+    this._cancelAndAnchor(this.fbGainLR.gain, now, crossFb);
+    this._cancelAndAnchor(this.fbGainRL.gain, now, crossFb);
 
     this.fbGainLL.gain.setTargetAtTime(directFb, now, 0.025);
     this.fbGainRR.gain.setTargetAtTime(directFb, now, 0.025);
@@ -371,6 +355,7 @@ export class TapeDelay {
   }
 
   setWowFlutter(depth) {
+    if (!Number.isFinite(depth)) return;
     const d = Math.max(0, Math.min(1.0, depth));
     this.wowAmount = 0.005 * d;
     this.flutterAmount = 0.0015 * d;
@@ -378,21 +363,12 @@ export class TapeDelay {
   }
 
   setTone(cutoffHz) {
-    const c = Math.max(800, Math.min(12000, cutoffHz));
+    if (!Number.isFinite(cutoffHz)) return;
+    const maxHz = Math.min(12000, this._nyquistCeiling());
+    const c = Math.max(800, Math.min(maxHz, cutoffHz));
     const now = this.ctx.currentTime;
-    if (typeof this.filterL.frequency.cancelAndHoldAtTime === 'function') {
-      this.filterL.frequency.cancelAndHoldAtTime(now);
-      this.filterR.frequency.cancelAndHoldAtTime(now);
-    } else if (typeof this.filterL.frequency.cancelScheduledValues === 'function') {
-      const curF1 = this.filterL.frequency.value ?? c;
-      const curF2 = this.filterR.frequency.value ?? c;
-      this.filterL.frequency.cancelScheduledValues(now);
-      this.filterR.frequency.cancelScheduledValues(now);
-      if (typeof this.filterL.frequency.setValueAtTime === 'function') {
-        this.filterL.frequency.setValueAtTime(curF1, now);
-        this.filterR.frequency.setValueAtTime(curF2, now);
-      }
-    }
+    this._cancelAndAnchor(this.filterL.frequency, now, c);
+    this._cancelAndAnchor(this.filterR.frequency, now, c);
     this.filterL.frequency.setTargetAtTime(c, now, 0.04);
     this.filterR.frequency.setTargetAtTime(c, now, 0.04);
 
@@ -406,32 +382,29 @@ export class TapeDelay {
   }
 
   setWet(wet) {
+    if (!Number.isFinite(wet)) return;
     this.wetLevel = Math.max(0, Math.min(1.0, wet));
     const now = this.ctx.currentTime;
-    if (typeof this.wetGain.gain.cancelAndHoldAtTime === 'function') {
-      this.wetGain.gain.cancelAndHoldAtTime(now);
-    } else if (typeof this.wetGain.gain.cancelScheduledValues === 'function') {
-      const curWet = this.wetGain.gain.value ?? this.wetLevel;
-      this.wetGain.gain.cancelScheduledValues(now);
-      if (typeof this.wetGain.gain.setValueAtTime === 'function') {
-        this.wetGain.gain.setValueAtTime(curWet, now);
-      }
-    }
+    this._cancelAndAnchor(this.wetGain.gain, now, this.wetLevel);
     this.wetGain.gain.setTargetAtTime(this.wetLevel, now, 0.025);
   }
 
   setDry(dry) {
+    if (!Number.isFinite(dry)) return;
     this.dryLevel = Math.max(0, Math.min(1.0, dry));
     const now = this.ctx.currentTime;
-    if (typeof this.dryGain.gain.cancelAndHoldAtTime === 'function') {
-      this.dryGain.gain.cancelAndHoldAtTime(now);
-    } else if (typeof this.dryGain.gain.cancelScheduledValues === 'function') {
-      const curDry = this.dryGain.gain.value ?? this.dryLevel;
-      this.dryGain.gain.cancelScheduledValues(now);
-      if (typeof this.dryGain.gain.setValueAtTime === 'function') {
-        this.dryGain.gain.setValueAtTime(curDry, now);
-      }
-    }
+    this._cancelAndAnchor(this.dryGain.gain, now, this.dryLevel);
     this.dryGain.gain.setTargetAtTime(this.dryLevel, now, 0.03);
+  }
+
+  dispose() {
+    [this.wowOsc, this.flutterOsc].forEach(osc => {
+      if (osc) {
+        try { osc.stop(); } catch (e) {}
+        try { osc.disconnect(); } catch (e) {}
+      }
+    });
+    try { if (this.input) this.input.disconnect(); } catch (e) {}
+    try { if (this.output) this.output.disconnect(); } catch (e) {}
   }
 }

@@ -1261,6 +1261,10 @@ export class BraunPlaySurface {
           keyEl._isHeld = false;
           keyEl.classList.remove('is-active');
           keyEl.classList.remove('is-pressed');
+          const midi = parseInt(keyEl.getAttribute('data-midi'), 10);
+          if (!isNaN(midi) && this.engine && typeof this.engine.noteOff === 'function') {
+            this.engine.noteOff(midi);
+          }
         }
         if (voiceOrPromise) {
           if (typeof voiceOrPromise.release === 'function') voiceOrPromise.release();
@@ -1268,6 +1272,12 @@ export class BraunPlaySurface {
         }
       });
       this.activeHeldKeys.clear();
+
+      this.activeTouches.forEach(({ midi }) => {
+        if (typeof midi === 'number' && !isNaN(midi) && this.engine && typeof this.engine.noteOff === 'function') {
+          this.engine.noteOff(midi);
+        }
+      });
 
       this.activeHeldChords.forEach(({ btn, session }) => {
         if (btn) {

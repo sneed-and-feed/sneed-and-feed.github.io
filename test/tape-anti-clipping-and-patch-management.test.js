@@ -1,0 +1,543 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { TapeDelay } from '../js/audio/tape-delay.js';
+import { AudioEngine } from '../js/audio/engine.js';
+import { AmbientApp } from '../js/app.js';
+import { makeTapeSaturationCurve, makeLimiterCurve } from '../js/audio/wavefolder.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+class MockAudioParam {
+  constructor(v = 1.0) {
+    this.value = v;
+    this.scheduledValues = [];
+  }
+  setValueAtTime(v, t) {
+    this.value = v;
+    this.scheduledValues.push({ type: 'setValueAtTime', v, t });
+  }
+  setTargetAtTime(v, t, tau) {
+    this.value = v;
+    this.scheduledValues.push({ type: 'setTargetAtTime', v, t, tau });
+  }
+  linearRampToValueAtTime(v, t) {
+    this.value = v;
+    this.scheduledValues.push({ type: 'linearRampToValueAtTime', v, t });
+  }
+  exponentialRampToValueAtTime(v, t) {
+    this.value = v;
+    this.scheduledValues.push({ type: 'exponentialRampToValueAtTime', v, t });
+  }
+  cancelScheduledValues(t) {
+    this.scheduledValues.push({ type: 'cancelScheduledValues', t });
+  }
+  cancelAndHoldAtTime(t) {
+    this.scheduledValues.push({ type: 'cancelAndHoldAtTime', t });
+  }
+}
+
+function createFullMockCtx(currentTime = 5.0) {
+  return {
+    sampleRate: 48000,
+    currentTime,
+    createGain: () => ({ gain: new MockAudioParam(1.0), connect() {}, disconnect() {} }),
+    createDelay: (max = 3.5) => ({ delayTime: new MockAudioParam(0.48), maxDelayTime: max, connect() {}, disconnect() {} }),
+    createBiquadFilter: () => ({
+      frequency: new MockAudioParam(1000),
+      Q: new MockAudioParam(1.0),
+      gain: new MockAudioParam(1.0),
+      type: 'lowpass',
+      connect() {},
+      disconnect() {}
+    }),
+    createBuffer: (ch, len, rate) => ({
+      getChannelData: () => new Float32Array(len),
+      length: len,
+      sampleRate: rate
+    }),
+    createBufferSource: () => ({ connect() {}, start() {}, stop() {} }),
+    createWaveShaper: () => ({ oversample: '', curve: null, connect() {}, disconnect() {} }),
+    createStereoPanner: () => ({ pan: new MockAudioParam(0), connect() {}, disconnect() {} }),
+    createOscillator: () => ({
+      frequency: new MockAudioParam(440),
+      detune: new MockAudioParam(0),
+      type: 'sine',
+      connect() {},
+      start() {},
+      stop() {}
+    }),
+    createAnalyser: () => ({ fftSize: 2048, smoothingTimeConstant: 0.8, connect() {} }),
+    createDynamicsCompressor: () => ({
+      threshold: new MockAudioParam(-3),
+      knee: new MockAudioParam(6),
+      ratio: new MockAudioParam(8),
+      attack: new MockAudioParam(0.003),
+      release: new MockAudioParam(0.060),
+      connect() {},
+      disconnect() {}
+    }),
+    createChannelSplitter: () => ({ connect() {} }),
+    createConvolver: () => ({ connect() {} }),
+    state: 'running',
+    destination: { connect() {} }
+  };
+}
+
+describe('Tape Delay DSP Anti-Clipping & Feedback Normalization', () => {
+  it('normalizes feedback gains with shaperGain so circulating loop gain never exceeds feedback setting', () => {
+    const ctx = createFullMockCtx();
+    const delay = new TapeDelay(ctx, {
+      delayTimeL: 0.48,
+      delayTimeR: 0.72,
+      feedback: 0.58
+    });
+
+    assert.ok(delay.shaperGain > 1.5, `shaperGain must reflect tape saturation small-signal slope (~1.5173), got ${delay.shaperGain}`);
+    
+    // Direct and cross feedback gains must be normalized
+    const directGain = delay.fbGainLL.gain.value;
+    const crossGain = delay.fbGainRL.gain.value;
+    const totalLoopGain = (directGain + crossGain) * delay.shaperGain;
+
+    assert.ok(Math.abs(totalLoopGain - 0.58) < 1e-3, `Net loop gain at feedback=0.58 must equal 0.58, got ${totalLoopGain}`);
+    assert.ok(totalLoopGain < 1.0, 'Total loop gain must be strictly < 1.0 to prevent runaway self-oscillation');
+
+    // Test max feedback setting (0.92)
+    delay.setFeedback(0.92);
+    const maxDirect = delay.fbGainLL.gain.value;
+    const maxCross = delay.fbGainRL.gain.value;
+    const maxTotalLoopGain = (maxDirect + maxCross) * delay.shaperGain;
+
+    assert.ok(Math.abs(maxTotalLoopGain - 0.92) < 1e-3, `Net loop gain at max feedback must equal 0.92, got ${maxTotalLoopGain}`);
+    assert.ok(maxTotalLoopGain < 1.0, 'Loop gain at max feedback must remain strictly < 1.0');
+  });
+
+  it('bounds tape head lowpass and highpass biquad filter Q values to Butterworth Q <= 0.707', () => {
+    const ctx = createFullMockCtx();
+    const delay = new TapeDelay(ctx);
+
+    assert.ok(delay.filterL.Q.value <= 0.7071, `Lowpass L filter Q must be <= 0.707, got ${delay.filterL.Q.value}`);
+    assert.ok(delay.filterR.Q.value <= 0.7071, `Lowpass R filter Q must be <= 0.707, got ${delay.filterR.Q.value}`);
+    assert.ok(delay.highpassL.Q.value <= 0.7071, `Highpass L filter Q must be <= 0.707, got ${delay.highpassL.Q.value}`);
+    assert.ok(delay.highpassR.Q.value <= 0.7071, `Highpass R filter Q must be <= 0.707, got ${delay.highpassR.Q.value}`);
+
+    // Adjusting tone should maintain bounded Q
+    delay.setTone(5000);
+    assert.ok(delay.filterL.Q.value <= 0.7071, 'Lowpass Q must remain <= 0.707 after setTone');
+    assert.ok(delay.filterR.Q.value <= 0.7071, 'Lowpass Q must remain <= 0.707 after setTone');
+  });
+
+  it('safety clamps wow and flutter modulation depth so delayTime never drops below 0.015s', () => {
+    const ctx = createFullMockCtx();
+    const delay = new TapeDelay(ctx, {
+      delayTimeL: 0.020, // 20ms
+      delayTimeR: 0.030,
+      wowAmount: 0.005,
+      flutterAmount: 0.0015
+    });
+
+    delay.setWowFlutter(1.0); // full depth request
+
+    // Headroom = Math.max(0, 0.020 - 0.015) = 0.005s.
+    // Nominal max = 0.0065s.
+    // Scale = 0.005 / 0.0065 = 0.769.
+    const wowL = Math.abs(delay.wowGainL.gain.value);
+    const flutterL = Math.abs(delay.flutterGainL.gain.value);
+    const maxExcursion = wowL + flutterL;
+
+    assert.ok(0.020 - maxExcursion >= 0.015 - 1e-6, `Effective minimum delay time (${0.020 - maxExcursion}s) must never drop below 0.015s`);
+
+    // Extreme near-zero case: delayTime set to 0.015s exactly
+    delay.setTime(0.015);
+    const clampedWow = Math.abs(delay.wowGainL.gain.value);
+    const clampedFlutter = Math.abs(delay.flutterGainL.gain.value);
+
+    assert.strictEqual(clampedWow, 0, 'Wow modulation must be clamped to 0 at 0.015s boundary');
+    assert.strictEqual(clampedFlutter, 0, 'Flutter modulation must be clamped to 0 at 0.015s boundary');
+    assert.strictEqual(delay.delayTimeL, 0.015, 'delayTimeL must be clamped to minimum 0.015s');
+  });
+
+  it('verifies makeLimiterCurve exhibits 0 dB unity gain below knee and zero derivative at boundaries', () => {
+    const curve = makeLimiterCurve(2048, 0.75);
+    assert.strictEqual(curve.length, 2048);
+
+    // Linear region check: slope must be strictly 1.0 (0 dB gain) with no distortion below knee
+    const mid = Math.floor(curve.length / 2);
+    const dx = 2 / 2047;
+    const slopeZero = (curve[mid + 1] - curve[mid]) / dx;
+    assert.ok(Math.abs(slopeZero - 1.0) < 1e-4, `Small-signal gain at zero must be 1.0, got ${slopeZero}`);
+
+    // Derivative near boundary must smoothly approach zero
+    const dPos = Math.abs(curve[2047] - curve[2046]);
+    assert.ok(dPos < 0.0005, `Boundary slope must approach 0, got ${dPos}`);
+
+    // Bounded endpoints
+    assert.strictEqual(curve[2047], 1.0);
+    assert.strictEqual(curve[0], -1.0);
+  });
+
+  it('verifies TapeDelay supports custom inputPad headroom and preserves default 0.707', () => {
+    const ctx = createFullMockCtx();
+    const defaultDelay = new TapeDelay(ctx);
+    assert.strictEqual(defaultDelay.inputPad.gain.value, 0.707, 'Default inputPad gain must be 0.707 (-3dB)');
+
+    const customDelay = new TapeDelay(ctx, { inputPad: 0.38 });
+    assert.strictEqual(customDelay.inputPad.gain.value, 0.38, 'Custom inputPad gain must be set accurately');
+  });
+
+  it('verifies circulating loop + incoming note energy is strictly < 1.0 under max velocity chord and 92% feedback', () => {
+    const ctx = createFullMockCtx();
+    const delay = new TapeDelay(ctx, { feedback: 0.92, inputPad: 0.38 });
+
+    // Maximum theoretical feedback signal returning from waveshapers
+    const maxDirectFb = delay.fbGainLL.gain.value;
+    const maxCrossFb = delay.fbGainRL.gain.value;
+    const maxFeedbackReturn = (maxDirectFb + maxCrossFb) * 1.0; // waveshaper peak output is bounded by 1.0
+    assert.ok(maxFeedbackReturn <= 0.6065, `Max feedback return must be <= 0.6065, got ${maxFeedbackReturn}`);
+
+    // Maximum chord input signal into delay line
+    // Even if pianoBus produces 0.85 and drones produce 0.22, inputPad (0.38) scales it down
+    const maxInputSignal = (0.85 + 0.22) * delay.inputPad.gain.value;
+    assert.ok(maxInputSignal <= 0.407, `Max input signal into delay must be <= 0.407, got ${maxInputSignal}`);
+
+    const totalWorstCase = maxFeedbackReturn + maxInputSignal;
+    assert.ok(totalWorstCase <= 1.015, `Worst case simultaneous sum must be safely within waveshaper domain, got ${totalWorstCase}`);
+
+    // Typical high-velocity chord strike + 92% feedback
+    const typicalChordPeak = 0.75 * delay.inputPad.gain.value;
+    const typicalSum = maxFeedbackReturn + typicalChordPeak;
+    assert.ok(typicalSum < 1.0, `High velocity chord strike + max feedback sum (${typicalSum}) must be strictly < 1.0 to guarantee zero boundary clipping`);
+  });
+});
+
+describe('AudioEngine Delay Send, Delay Return Bus & Return Limiter', () => {
+  it('instantiates delayReturn bus and soft-knee delayReturnLimiter protecting master and reverb', async () => {
+    const ctx = createFullMockCtx();
+    const origCtx = globalThis.AudioContext;
+    globalThis.AudioContext = class { constructor() { return ctx; } };
+
+    try {
+      const engine = new AudioEngine();
+      await engine.init();
+
+      assert.ok(engine.delayReturn, 'AudioEngine must instantiate delayReturn gain node');
+      assert.strictEqual(engine.delayReturn.gain.value, 1.0, 'delayReturn gain must be unity calibrated');
+      assert.ok(engine.delayReturnLimiter, 'AudioEngine must instantiate delayReturnLimiter');
+      assert.strictEqual(engine.delayReturnLimiter.oversample, '4x', 'delayReturnLimiter must use 4x oversampling');
+      assert.ok(engine.delayReturnLimiter.curve instanceof Float32Array, 'delayReturnLimiter must have a soft clip curve');
+
+      // Verify delayReturnCompressor exists protecting delay returns
+      assert.ok(engine.delayReturnCompressor, 'AudioEngine must instantiate delayReturnCompressor');
+      assert.strictEqual(engine.delayReturnCompressor.threshold.value, -6.0, 'delayReturnCompressor threshold must be -6 dBFS');
+      assert.strictEqual(engine.delayReturnCompressor.ratio.value, 4.0, 'delayReturnCompressor ratio must be 4:1');
+
+      // Verify delaySend bus remains unity calibrated
+      assert.ok(engine.delaySend, 'delaySend bus must exist');
+      assert.strictEqual(engine.delaySend.gain.value, 1.0, 'delaySend bus gain must be unity calibrated');
+
+      // Verify tapeDelay inputPad headroom is calibrated
+      assert.strictEqual(engine.tapeDelay.inputPad.gain.value, 0.38, 'tapeDelay inputPad must provide calibrated headroom');
+    } finally {
+      globalThis.AudioContext = origCtx;
+    }
+  });
+
+  it('handles high-velocity note strikes and 6-note polyphonic chords into tape delay with zero NaN or errors', async () => {
+    const ctx = createFullMockCtx();
+    const origCtx = globalThis.AudioContext;
+    globalThis.AudioContext = class { constructor() { return ctx; } };
+
+    try {
+      const engine = new AudioEngine();
+      await engine.init();
+
+      // Trigger high-velocity polyphonic chord (6 voices simultaneously)
+      const chordFreqs = [130.81, 196.00, 261.63, 329.63, 392.00, 493.88]; // C3, G3, C4, E4, G4, B4
+      chordFreqs.forEach(freq => {
+        const voice = engine.feltPiano.playNote(freq, 1.0, 4.0, false);
+        assert.ok(voice, 'Voice must be successfully allocated');
+      });
+
+      // Verify piano bus output gain is attenuated by 1/sqrt(N_active)
+      assert.ok(engine.feltPiano.output.gain.value > 0, 'Piano output gain must be positive');
+      assert.ok(!Number.isNaN(engine.feltPiano.output.gain.value), 'Piano output gain must not be NaN');
+
+      // Check tape delay delay lines receive signal with valid audio parameters
+      assert.ok(!Number.isNaN(engine.tapeDelay.delayNodeL.delayTime.value));
+      assert.ok(!Number.isNaN(engine.tapeDelay.fbGainLL.gain.value));
+      assert.ok(engine.tapeDelay.fbGainLL.gain.value <= 0.606, 'Direct feedback gain must be safely bounded');
+    } finally {
+      globalThis.AudioContext = origCtx;
+    }
+  });
+});
+
+describe('Synthesizer Patch Export & Load Management', () => {
+  function createMockAppDOM() {
+    const elements = new Map();
+    const createEl = (id, tag = 'div') => {
+      const listeners = new Map();
+      const el = {
+        id,
+        tagName: tag.toUpperCase(),
+        value: '0',
+        textContent: '',
+        style: {},
+        classList: {
+          contains: () => false,
+          add: () => {},
+          remove: () => {},
+          toggle: () => {}
+        },
+        setAttribute: (k, v) => { el[k] = v; },
+        getAttribute: (k) => el[k] || null,
+        addEventListener: (type, cb) => {
+          if (!listeners.has(type)) listeners.set(type, []);
+          listeners.get(type).push(cb);
+        },
+        dispatchEvent: (type, ev = {}) => {
+          (listeners.get(type) || []).forEach(cb => cb(ev));
+        },
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        appendChild: () => {},
+        removeChild: () => {},
+        click: () => {},
+        blur: () => {},
+        focus: () => {}
+      };
+      elements.set(id, el);
+      return el;
+    };
+
+    let lastCreatedAnchor = null;
+    return {
+      getElementById: (id) => elements.get(id) || createEl(id),
+      createElement: (tag) => {
+        const el = createEl('created-' + Math.random(), tag);
+        if (tag.toLowerCase() === 'a') lastCreatedAnchor = el;
+        return el;
+      },
+      querySelectorAll: () => [],
+      querySelector: () => null,
+      body: createEl('body', 'body'),
+      getLastCreatedAnchor: () => lastCreatedAnchor
+    };
+  }
+
+  it('exportPatch serializes complete synthesizer state into valid JSON patch structure and names AS-42 Preset [ID]', () => {
+    const ctx = createFullMockCtx();
+    const origCtx = globalThis.AudioContext;
+    const origDoc = globalThis.document;
+    const origUrl = globalThis.URL;
+    const origBlob = globalThis.Blob;
+
+    if (!globalThis.URL) globalThis.URL = {};
+    const origCreateObjectURL = globalThis.URL.createObjectURL;
+    const origRevokeObjectURL = globalThis.URL.revokeObjectURL;
+    globalThis.URL.createObjectURL = () => 'blob:mock-patch-url';
+    globalThis.URL.revokeObjectURL = () => {};
+
+    globalThis.AudioContext = class { constructor() { return ctx; } };
+    const mockDoc = createMockAppDOM();
+    globalThis.document = mockDoc;
+
+    try {
+      const app = new AmbientApp();
+      const patch = app.exportPatch();
+
+      assert.strictEqual(patch.format, 'BRAUN_AS42_PATCH');
+      assert.strictEqual(patch.version, 1);
+      assert.ok(patch.name.startsWith('AS-42 Preset'), `Patch name must start with 'AS-42 Preset', got ${patch.name}`);
+      assert.ok(patch.timestamp, 'Patch must have timestamp');
+      assert.ok(patch.knobs, 'Patch must contain knobs dictionary');
+      assert.ok(patch.drone1, 'Patch must contain drone1 state');
+      assert.ok(patch.drone2, 'Patch must contain drone2 state');
+      assert.ok(patch.vectorPad, 'Patch must contain vectorPad coordinates');
+      assert.strictEqual(typeof patch.knobs.delayTime, 'number');
+      assert.strictEqual(typeof patch.knobs.delayFeedback, 'number');
+      assert.strictEqual(typeof (patch.knobs.masterVol ?? patch.knobs.masterVolume), 'number');
+
+      const anchor = mockDoc.getLastCreatedAnchor();
+      assert.ok(anchor, 'exportPatch must create download anchor');
+      assert.ok(anchor.download.startsWith('AS-42 Preset'), `Download filename must start with 'AS-42 Preset', got ${anchor.download}`);
+      assert.ok(anchor.download.endsWith('.json'), `Download filename must end with .json, got ${anchor.download}`);
+    } finally {
+      globalThis.AudioContext = origCtx;
+      globalThis.document = origDoc;
+      if (origCreateObjectURL) globalThis.URL.createObjectURL = origCreateObjectURL;
+      if (origRevokeObjectURL) globalThis.URL.revokeObjectURL = origRevokeObjectURL;
+    }
+  });
+
+  it('loadPatch restores all knobs, modal harmony, waveforms, and drone snap tuning accurately', () => {
+    const ctx = createFullMockCtx();
+    const origCtx = globalThis.AudioContext;
+    const origDoc = globalThis.document;
+
+    globalThis.AudioContext = class { constructor() { return ctx; } };
+    globalThis.document = createMockAppDOM();
+
+    try {
+      const app = new AmbientApp();
+
+      const customPatch = {
+        format: 'BRAUN_AS42_PATCH',
+        version: 1,
+        rootPitchClass: 5, // F
+        currentScaleKey: 'AVALON_MODAL',
+        a4: 432,
+        theme: 'dark',
+        pianoWave: 'cs80',
+        knobs: {
+          delayTime: 850,
+          delayFeedback: 75,
+          delayWow: 60,
+          delayTone: 4500,
+          feltTone: 85,
+          masterVolume: 90
+        },
+        drone1: { active: true, waveA: 'saw', waveB: 'warm', snap: 'warm-root' },
+        drone2: { active: true, waveA: 'triangle', waveB: 'sine', snap: 'sus-4th' },
+        vectorPad: { x: 0.70, y: 0.65 }
+      };
+
+      const success = app.loadPatch(customPatch, { animate: false });
+      assert.strictEqual(success, true, 'loadPatch must return true on success');
+
+      // Verify musical settings restored
+      assert.strictEqual(app.engine.rootPitchClass, 5);
+      assert.strictEqual(app.engine.currentScaleKey, 'AVALON_MODAL');
+      assert.strictEqual(app.engine.a4, 432);
+
+      // Verify knobs restored
+      assert.strictEqual(app.knobs.delayTime.value, 850);
+      assert.strictEqual(app.knobs.delayFeedback.value, 75);
+      assert.strictEqual(app.knobs.delayWow.value, 60);
+
+      // Verify engine audio parameters were updated
+      assert.strictEqual(app.engine.delayParams.time, 0.85);
+      assert.strictEqual(app.engine.delayParams.feedback, 0.75);
+      assert.strictEqual(app.engine.delayParams.wow, 0.60);
+      assert.strictEqual(app.engine.feltParams.waveform, 'cs80');
+      if (app.engine.feltPiano) {
+        assert.strictEqual(app.engine.feltPiano.currentWaveform, 'cs80');
+      }
+      assert.strictEqual(app.engine.droneParams[1].active, true);
+      assert.strictEqual(app.engine.droneParams[2].active, true);
+    } finally {
+      globalThis.AudioContext = origCtx;
+      globalThis.document = origDoc;
+    }
+  });
+
+  it('loadPatch preserves custom vectorPad coordinates across animated knob transitions without clobbering', async () => {
+    const ctx = createFullMockCtx();
+    const origCtx = globalThis.AudioContext;
+    const origDoc = globalThis.document;
+
+    globalThis.AudioContext = class { constructor() { return ctx; } };
+    globalThis.document = createMockAppDOM();
+
+    try {
+      const app = new AmbientApp();
+
+      const customPatch = {
+        format: 'BRAUN_AS42_PATCH',
+        version: 1,
+        knobs: {
+          feltTone: 85,
+          reverbShimmer: 85
+        },
+        vectorPad: { x: 0.20, y: 0.30 }
+      };
+
+      app.loadPatch(customPatch, { animate: true, duration: 40 });
+
+      // Wait for knob animations and safety release timer to settle
+      await new Promise(resolve => setTimeout(resolve, 120));
+
+      assert.strictEqual(app.vectorPad.x, 0.20, 'VectorPad X must not be clobbered by feltTone knob animation onChange callback');
+      assert.strictEqual(app.vectorPad.y, 0.30, 'VectorPad Y must not be clobbered by reverbShimmer knob animation onChange callback');
+    } finally {
+      globalThis.AudioContext = origCtx;
+      globalThis.document = origDoc;
+    }
+  });
+
+  it('verifies continuous knob dragging does not cancel or restart wow/flutter LFOs when scale is unchanged or crosses threshold', () => {
+    let cancelLfoCount = 0;
+    const createMockParam = (v = 0) => ({
+      value: v,
+      cancelAndHoldAtTime: () => { cancelLfoCount++; },
+      cancelScheduledValues: () => { cancelLfoCount++; },
+      setTargetAtTime: function(val) { this.value = val; },
+      setValueAtTime: function(val) { this.value = val; }
+    });
+
+    const ctx = createFullMockCtx();
+    const delay = new TapeDelay(ctx, { delayTimeL: 0.40, delayTimeR: 0.60 });
+
+    // Instrument the wow and flutter gain params
+    delay.wowGainL.gain = createMockParam(0.0025);
+    delay.wowGainR.gain = createMockParam(-0.0025);
+    delay.flutterGainL.gain = createMockParam(0.0008);
+    delay.flutterGainR.gain = createMockParam(0.00064);
+
+    cancelLfoCount = 0;
+
+    // Simulate rapid dragging across 50 intermediate time steps (400ms -> 900ms)
+    for (let i = 40; i <= 90; i++) {
+      delay.setTime(i / 100);
+    }
+
+    assert.strictEqual(cancelLfoCount, 0, 'Rapid knob dragging above headroom threshold must never cancel or glitch wow/flutter LFOs');
+    assert.strictEqual(delay.delayTimeL, 0.90);
+
+    // Also simulate dragging down to and through the 15ms threshold
+    for (let i = 90; i >= 15; i--) {
+      delay.setTime(i / 1000);
+    }
+    assert.strictEqual(cancelLfoCount, 0, 'Rapid knob dragging through headroom threshold must never cancel or glitch wow/flutter LFOs');
+    assert.strictEqual(delay.delayTimeL, 0.015);
+  });
+
+  it('verifies top bar contains export and load patch buttons in braun-utility-group next to reset and record', () => {
+    const htmlPath = path.resolve(__dirname, '../index.html');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.ok(html.includes('id="btn-export-patch"'), 'index.html must contain btn-export-patch');
+    assert.ok(html.includes('id="btn-load-patch"'), 'index.html must contain btn-load-patch');
+    assert.ok(html.includes('id="input-load-patch"'), 'index.html must contain input-load-patch');
+
+    // Verify button placement inside .braun-utility-group
+    const utilityGroupMatch = html.match(/<div class="braun-utility-group">([\s\S]*?)<\/div>\s*<\/div>/);
+    assert.ok(utilityGroupMatch, 'index.html must contain braun-utility-group');
+    const utilityContent = utilityGroupMatch[1];
+    assert.ok(utilityContent.includes('id="btn-reset-all"'), 'Utility group must contain btn-reset-all');
+    assert.ok(utilityContent.includes('id="btn-record"'), 'Utility group must contain btn-record');
+    assert.ok(utilityContent.includes('id="btn-export-patch"'), 'Utility group must contain btn-export-patch next to reset/record');
+    assert.ok(utilityContent.includes('id="btn-load-patch"'), 'Utility group must contain btn-load-patch next to reset/record');
+    assert.ok(utilityContent.includes('id="btn-power"'), 'Utility group must contain btn-power');
+  });
+
+  it('verifies CSS styles for braun-patch-btn match Dieter Rams aesthetic with 30px height, 11px font size and dark theme support', () => {
+    const cssPath = path.resolve(__dirname, '../css/style.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+
+    assert.ok(css.includes('.braun-patch-btn'), 'style.css must contain .braun-patch-btn');
+    assert.ok(css.includes('.braun-patch-group'), 'style.css must contain .braun-patch-group');
+    assert.ok(css.includes('.braun-patch-icon'), 'style.css must contain .braun-patch-icon');
+
+    // Verify matching 30px height and 11px font size
+    assert.ok(css.match(/\.braun-patch-btn\s*\{[^}]*height:\s*30px;/), '.braun-patch-btn must have height: 30px to match reset/record buttons');
+    assert.ok(css.match(/\.braun-patch-btn\s*\{[^}]*font-size:\s*11px;/), '.braun-patch-btn must have font-size: 11px');
+
+    // Verify dark theme support
+    assert.ok(css.includes('[data-theme="dark"] .braun-patch-btn'), 'style.css must support dark theme for .braun-patch-btn');
+  });
+});

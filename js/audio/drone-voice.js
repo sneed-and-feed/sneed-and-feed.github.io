@@ -81,6 +81,33 @@ export class SolarDroneVoice {
     this._buildGraph();
   }
 
+  _nyquistCeiling() {
+    const sr = (this.ctx && Number.isFinite(this.ctx.sampleRate) && this.ctx.sampleRate > 0)
+      ? this.ctx.sampleRate
+      : 48000;
+    return Math.max(800, sr * 0.49);
+  }
+
+  _cancelAndAnchor(param, now, fallback) {
+    if (!param) return;
+    const curVal = (typeof param.value === 'number' && Number.isFinite(param.value)) ? param.value : fallback;
+    let held = false;
+    if (typeof param.cancelAndHoldAtTime === 'function') {
+      try {
+        param.cancelAndHoldAtTime(now);
+        held = true;
+      } catch (e) {
+        held = false;
+      }
+    }
+    if (!held && typeof param.cancelScheduledValues === 'function') {
+      param.cancelScheduledValues(now);
+      if (typeof param.setValueAtTime === 'function' && Number.isFinite(curVal)) {
+        param.setValueAtTime(curVal, now);
+      }
+    }
+  }
+
   _buildGraph() {
     const ctx = this.ctx;
 
@@ -100,12 +127,15 @@ export class SolarDroneVoice {
     }
 
     // Resonant Filter Section (24dB / 4-pole cascaded biquad)
+    const initCutoff = Math.max(40, Math.min(Math.min(14000, this._nyquistCeiling()), this.cutoff));
+    this.cutoff = initCutoff;
+    this._currentCutoff = initCutoff;
     this.filter1 = ctx.createBiquadFilter();
     this.filter2 = ctx.createBiquadFilter();
     this.filter1.type = 'lowpass';
     this.filter2.type = 'lowpass';
-    this.filter1.frequency.setValueAtTime(this.cutoff, ctx.currentTime);
-    this.filter2.frequency.setValueAtTime(this.cutoff, ctx.currentTime);
+    this.filter1.frequency.setValueAtTime(initCutoff, ctx.currentTime);
+    this.filter2.frequency.setValueAtTime(initCutoff, ctx.currentTime);
     this.filter1.Q.setValueAtTime(Math.sqrt(this.resonance), ctx.currentTime);
     this.filter2.Q.setValueAtTime(Math.sqrt(this.resonance), ctx.currentTime);
 
@@ -383,6 +413,17 @@ export class SolarDroneVoice {
     this.subBassGainTrim = sub ? 1.70 : 1.0;
     this._shaperNeedsUpdate = true;
     this.setWavefold(this.drive, this.fold);
+    // Center stereo panner in sub-bass mode to keep sub-bass tight, focused, and centered
+    this.pan = sub ? 0.0 : (this.voiceId === 1 ? -0.45 : 0.45);
+    if (this.panner && this.panner.pan) {
+      const now = this.ctx ? this.ctx.currentTime : 0;
+      this._cancelAndAnchor(this.panner.pan, now, this.pan);
+      if (typeof this.panner.pan.setTargetAtTime === 'function') {
+        this.panner.pan.setTargetAtTime(this.pan, now, 0.025);
+      } else {
+        this.panner.pan.value = this.pan;
+      }
+    }
     if (this.isActive && this.voiceGain && this.voiceGain.gain) {
       const now = this.ctx.currentTime;
       const targetGain = this.volume * this.subBassGainTrim;
@@ -391,6 +432,7 @@ export class SolarDroneVoice {
       if (this._declickingUntil && now < this._declickingUntil - 0.002) {
         return;
       }
+      this._cancelAndAnchor(this.voiceGain.gain, now, this._getInstantGain(now));
       if (typeof this.voiceGain.gain.setTargetAtTime === 'function') {
         this.voiceGain.gain.setTargetAtTime(targetGain, now, 0.04);
       } else {
@@ -405,15 +447,20 @@ export class SolarDroneVoice {
    * @returns {number}
    */
   _getInstantGain(now) {
-    if (!this.isActive) return 0.0001;
+    if (!this.isActive) {
+      if (this.voiceGain && this.voiceGain.gain && typeof this.voiceGain.gain.value === 'number' && Number.isFinite(this.voiceGain.gain.value) && this.voiceGain.gain.value > 0.0001) {
+        return Math.min(1.5, this.voiceGain.gain.value);
+      }
+      return 0.0001;
+    }
     // If currently in a declick crossfade transition, interpolate the in-flight envelope
     if (this._declickEndTime && now < this._declickEndTime) {
-      const tStart = this._declickStartTime || now;
-      const tHalf = this._declickHalfTime || (tStart + 0.015);
+      const tStart = Number.isFinite(this._declickStartTime) ? this._declickStartTime : now;
+      const tHalf = Number.isFinite(this._declickHalfTime) ? this._declickHalfTime : (tStart + 0.015);
       const tEnd = this._declickEndTime;
-      const startG = this._declickStartGain || 0.5;
-      const dipG = this._declickDipGain || 0.01;
-      const endG = this._declickEndGain || startG;
+      const startG = Number.isFinite(this._declickStartGain) ? this._declickStartGain : 0.5;
+      const dipG = Number.isFinite(this._declickDipGain) ? this._declickDipGain : 0.01;
+      const endG = Number.isFinite(this._declickEndGain) ? this._declickEndGain : startG;
       if (now <= tHalf) {
         const frac = Math.max(0, Math.min(1, (now - tStart) / Math.max(0.001, tHalf - tStart)));
         return startG + (dipG - startG) * frac;
@@ -423,11 +470,11 @@ export class SolarDroneVoice {
       }
     }
     // Query AudioParam.value if valid and finite
-    if (this.voiceGain && this.voiceGain.gain && typeof this.voiceGain.gain.value === 'number' && isFinite(this.voiceGain.gain.value)) {
+    if (this.voiceGain && this.voiceGain.gain && typeof this.voiceGain.gain.value === 'number' && Number.isFinite(this.voiceGain.gain.value)) {
       return Math.max(0.0001, Math.min(1.5, this.voiceGain.gain.value));
     }
     const baseVol = this.volume * (this.subBassGainTrim || 1.0);
-    return (typeof this._currentGain === 'number' && isFinite(this._currentGain)) ? this._currentGain : baseVol;
+    return (typeof this._currentGain === 'number' && Number.isFinite(this._currentGain)) ? this._currentGain : baseVol;
   }
 
   /**
@@ -494,9 +541,11 @@ export class SolarDroneVoice {
    * @param {number} [timeConstant=0.025] - Slew time constant in seconds (20-30ms)
    */
   setFrequency(freq, timeConstant = 0.025) {
-    const targetFreq = Math.max(20, Math.min(2000, freq));
+    const safeFreq = Number.isFinite(freq) ? freq : (this.currentFreq || this.baseFreq);
+    const targetFreq = Math.max(20, Math.min(2000, safeFreq));
     const now = this.ctx.currentTime;
-    const tau = Math.max(0.015, Math.min(0.05, timeConstant));
+    const safeTc = Number.isFinite(timeConstant) ? timeConstant : 0.025;
+    const tau = Math.max(0.015, Math.min(0.05, safeTc));
     const prevA = (this.oscA.frequency.value !== undefined && this.oscA.frequency.value !== null && isFinite(this.oscA.frequency.value) && this.oscA.frequency.value > 0)
       ? this.oscA.frequency.value
       : (this.currentFreq || this.baseFreq);
@@ -545,16 +594,18 @@ export class SolarDroneVoice {
    * Set microtonal detune in cents (-50 to +50 cents) with smooth slewing
    */
   setDetuneCents(cents, timeConstant = 0.025) {
+    const safeCents = Number.isFinite(cents) ? Math.max(-2400, Math.min(2400, cents)) : this.detuneCents;
     const prevDetune = (this.oscB.detune.value !== undefined && this.oscB.detune.value !== null && isFinite(this.oscB.detune.value))
       ? this.oscB.detune.value
       : (this._currentDetune ?? this.detuneCents);
-    this.detuneCents = cents;
-    this._currentDetune = cents;
+    this.detuneCents = safeCents;
+    this._currentDetune = safeCents;
     if (!this.isSubBass) {
-      this._baseDetune = cents;
+      this._baseDetune = safeCents;
     }
     const now = this.ctx.currentTime;
-    const tau = Math.max(0.015, Math.min(0.05, timeConstant));
+    const safeTc = Number.isFinite(timeConstant) ? timeConstant : 0.025;
+    const tau = Math.max(0.015, Math.min(0.05, safeTc));
 
     let held = false;
     if (typeof this.oscB.detune.cancelAndHoldAtTime === 'function') {
@@ -572,9 +623,9 @@ export class SolarDroneVoice {
       }
     }
     if (typeof this.oscB.detune.setTargetAtTime === 'function') {
-      this.oscB.detune.setTargetAtTime(cents, now, tau);
+      this.oscB.detune.setTargetAtTime(safeCents, now, tau);
     } else {
-      this.oscB.detune.value = cents;
+      this.oscB.detune.value = safeCents;
     }
   }
 
@@ -590,12 +641,14 @@ export class SolarDroneVoice {
    * This allows exact dial-in of slow throbbing acoustic interference!
    */
   setBeatingHz(hz, timeConstant = 0.025) {
-    this.subHertzBeat = Math.max(-15.0, Math.min(15.0, hz));
+    const safeHz = Number.isFinite(hz) ? hz : this.subHertzBeat;
+    this.subHertzBeat = Math.max(-15.0, Math.min(15.0, safeHz));
     if (!this.isSubBass) {
       this._baseBeating = this.subHertzBeat;
     }
     const now = this.ctx.currentTime;
-    const tau = Math.max(0.015, Math.min(0.05, timeConstant));
+    const safeTc = Number.isFinite(timeConstant) ? timeConstant : 0.025;
+    const tau = Math.max(0.015, Math.min(0.05, safeTc));
     const currentBase = this.currentFreq || this.baseFreq;
     const targetFreq = currentBase + this.subHertzBeat;
     const prevB = (this.oscB.frequency.value !== undefined && this.oscB.frequency.value !== null && isFinite(this.oscB.frequency.value))
@@ -702,8 +755,10 @@ export class SolarDroneVoice {
    * Set wavefolding drive and fold depth
    */
   setWavefold(drive, fold) {
-    const d = Math.max(0.5, Math.min(4.0, drive));
-    const f = Math.max(0.0, Math.min(1.0, fold));
+    const safeDrive = Number.isFinite(drive) ? drive : this.drive;
+    const safeFold = Number.isFinite(fold) ? fold : this.fold;
+    const d = Math.max(0.5, Math.min(4.0, safeDrive));
+    const f = Math.max(0.0, Math.min(1.0, safeFold));
 
     const targetCurve = this.isSubBass
       ? getCachedSoftClipCurve(1.25 + f * 0.45, 2048)
@@ -756,14 +811,16 @@ export class SolarDroneVoice {
    * @param {number} [timeConstant=0.025] - Slew time constant in seconds
    */
   setCutoff(hz, timeConstant = 0.025) {
-    const targetHz = Math.max(40, Math.min(14000, hz));
+    const safeHz = Number.isFinite(hz) ? hz : this.cutoff;
+    const targetHz = Math.max(40, Math.min(Math.min(14000, this._nyquistCeiling()), safeHz));
     const prevCutoff = (this.filter1.frequency.value !== undefined && this.filter1.frequency.value !== null && isFinite(this.filter1.frequency.value))
-      ? this.filter1.frequency.value
+      ? Math.min(this._nyquistCeiling(), this.filter1.frequency.value)
       : (this._currentCutoff || this.cutoff);
     this.cutoff = targetHz;
     this._currentCutoff = targetHz;
     const now = this.ctx.currentTime;
-    const tau = Math.max(0.015, Math.min(0.05, timeConstant));
+    const safeTc = Number.isFinite(timeConstant) ? timeConstant : 0.025;
+    const tau = Math.max(0.015, Math.min(0.05, safeTc));
     this._updateLfoModulation(now);
 
     let held = false;
@@ -795,18 +852,16 @@ export class SolarDroneVoice {
 
   _updateLfoModulation(now = this.ctx.currentTime) {
     // Dynamic clamp ensures filter frequency never drops below 25 Hz at negative LFO peaks
-    const maxSafeDepth = Math.max(0, (this.cutoff - 30) * 0.85);
-    const safeDepth = Math.min(this.lfoDepth, maxSafeDepth);
+    // or exceeds Nyquist ceiling at positive LFO peaks
+    const maxNegDepth = Math.max(0, (this.cutoff - 30) * 0.85);
+    const maxPosDepth = Math.max(0, (this._nyquistCeiling() - this.cutoff) * 0.85);
+    const safeDepth = Math.min(this.lfoDepth, maxNegDepth, maxPosDepth);
     if (this.lfoGain1 && this.lfoGain1.gain) {
       if (Math.abs((this._appliedLfoDepth ?? -1) - safeDepth) > 0.5) {
+        const prevDepth = Number.isFinite(this._appliedLfoDepth) ? this._appliedLfoDepth : safeDepth;
         this._appliedLfoDepth = safeDepth;
-        if (typeof this.lfoGain1.gain.cancelAndHoldAtTime === 'function') {
-          this.lfoGain1.gain.cancelAndHoldAtTime(now);
-          this.lfoGain2.gain.cancelAndHoldAtTime(now);
-        } else if (typeof this.lfoGain1.gain.cancelScheduledValues === 'function') {
-          this.lfoGain1.gain.cancelScheduledValues(now);
-          this.lfoGain2.gain.cancelScheduledValues(now);
-        }
+        this._cancelAndAnchor(this.lfoGain1.gain, now, prevDepth);
+        this._cancelAndAnchor(this.lfoGain2.gain, now, prevDepth);
         if (typeof this.lfoGain1.gain.setTargetAtTime === 'function') {
           this.lfoGain1.gain.setTargetAtTime(safeDepth, now, 0.05);
           this.lfoGain2.gain.setTargetAtTime(safeDepth, now, 0.05);
@@ -822,19 +877,15 @@ export class SolarDroneVoice {
    * Set filter resonance
    */
   setResonance(q) {
-    this.resonance = Math.max(0.5, Math.min(12.0, q));
+    const safeQ = Number.isFinite(q) ? q : this.resonance;
+    this.resonance = Math.max(0.5, Math.min(12.0, safeQ));
     if (!this.isSubBass) {
       this._baseResonance = this.resonance;
     }
     const qSqrt = Math.sqrt(this.resonance);
     const now = this.ctx.currentTime;
-    if (typeof this.filter1.Q.cancelAndHoldAtTime === 'function') {
-      this.filter1.Q.cancelAndHoldAtTime(now);
-      this.filter2.Q.cancelAndHoldAtTime(now);
-    } else if (typeof this.filter1.Q.cancelScheduledValues === 'function') {
-      this.filter1.Q.cancelScheduledValues(now);
-      this.filter2.Q.cancelScheduledValues(now);
-    }
+    this._cancelAndAnchor(this.filter1.Q, now, qSqrt);
+    this._cancelAndAnchor(this.filter2.Q, now, qSqrt);
     if (typeof this.filter1.Q.setTargetAtTime === 'function') {
       this.filter1.Q.setTargetAtTime(qSqrt, now, 0.03);
       this.filter2.Q.setTargetAtTime(qSqrt, now, 0.03);
@@ -848,12 +899,15 @@ export class SolarDroneVoice {
    * Set LFO breathing rate and depth
    */
   setLfo(rateHz, depthHz) {
-    this.lfoRate = Math.max(0.01, Math.min(8.0, rateHz));
-    this.lfoDepth = Math.max(0, Math.min(1200, depthHz));
+    const safeRate = Number.isFinite(rateHz) ? rateHz : this.lfoRate;
+    const safeDepth = Number.isFinite(depthHz) ? depthHz : this.lfoDepth;
+    this.lfoRate = Math.max(0.01, Math.min(8.0, safeRate));
+    this.lfoDepth = Math.max(0, Math.min(1200, safeDepth));
     if (!this.isSubBass) {
       this._baseLfoDepth = this.lfoDepth;
     }
     const now = this.ctx.currentTime;
+    this._cancelAndAnchor(this.lfoOsc.frequency, now, this.lfoRate);
     if (typeof this.lfoOsc.frequency.setTargetAtTime === 'function') {
       this.lfoOsc.frequency.setTargetAtTime(this.lfoRate, now, 0.05);
     } else {
@@ -866,9 +920,12 @@ export class SolarDroneVoice {
    * Set stereo pan
    */
   setPan(p) {
-    this.pan = Math.max(-1.0, Math.min(1.0, p));
+    const safePan = Number.isFinite(p) ? p : this.pan;
+    this.pan = Math.max(-1.0, Math.min(1.0, safePan));
     if (this.panner) {
-      this.panner.pan.setTargetAtTime(this.pan, this.ctx.currentTime, 0.03);
+      const now = this.ctx.currentTime;
+      this._cancelAndAnchor(this.panner.pan, now, this.pan);
+      this.panner.pan.setTargetAtTime(this.pan, now, 0.03);
     }
   }
 
@@ -876,7 +933,8 @@ export class SolarDroneVoice {
    * Set volume with smooth slewing and gain tracking
    */
   setVolume(v) {
-    this.volume = Math.max(0, Math.min(1.0, v));
+    const safeVol = Number.isFinite(v) ? v : this.volume;
+    this.volume = Math.max(0, Math.min(1.0, safeVol));
     const effectiveGain = this.volume * (this.subBassGainTrim || 1.0);
     if (this.isActive && this.voiceGain && this.voiceGain.gain) {
       const now = this.ctx.currentTime;
@@ -943,6 +1001,41 @@ export class SolarDroneVoice {
       this.voiceGain.gain.value = targetGain;
     }
     return this.isActive;
+  }
+
+  dispose() {
+    this.isActive = false;
+    if (this._wavefoldDebounceTimer) {
+      clearTimeout(this._wavefoldDebounceTimer);
+      this._wavefoldDebounceTimer = null;
+    }
+    this._pendingCurve = null;
+    [this.oscA, this.oscB, this.lfoOsc].forEach(osc => {
+      if (osc) {
+        try { if (typeof osc.stop === 'function') osc.stop(); } catch (e) {}
+        try { if (typeof osc.disconnect === 'function') osc.disconnect(); } catch (e) {}
+      }
+    });
+    [
+      this.oscAGain,
+      this.oscBGain,
+      this.oscAShaperGain,
+      this.oscADirectGain,
+      this.oscBShaperGain,
+      this.oscBDirectGain,
+      this.oscMixer,
+      this.shaper,
+      this.filter1,
+      this.filter2,
+      this.lfoGain1,
+      this.lfoGain2,
+      this.voiceGain,
+      this.panner
+    ].forEach(node => {
+      if (node && typeof node.disconnect === 'function') {
+        try { node.disconnect(); } catch (e) {}
+      }
+    });
   }
 }
 

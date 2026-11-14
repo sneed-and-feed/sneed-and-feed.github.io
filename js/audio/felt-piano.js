@@ -54,8 +54,16 @@ export class FeltPianoVoice {
     this._isReleased = false;
     this._releaseTime = null;
     this._releaseStartGain = null;
+    this.triggerId = 0;
 
     this._buildVoice();
+  }
+
+  _nyquistCeiling() {
+    const sr = (this.ctx && Number.isFinite(this.ctx.sampleRate) && this.ctx.sampleRate > 0)
+      ? this.ctx.sampleRate
+      : 48000;
+    return Math.max(800, sr * 0.49);
   }
 
   _buildVoice() {
@@ -400,9 +408,16 @@ export class FeltPianoVoice {
    * @param {boolean} [isHold=false] - True continuous hold sustain without premature decay
    */
   trigger(freq, velocity, duration, params, isHold = false) {
+    this.triggerId = (this.triggerId || 0) + 1;
     const ctx = this.ctx;
     const now = ctx.currentTime;
     const cancelTime = Math.max(now, ctx.currentTime);
+    const nyquist = this._nyquistCeiling();
+
+    const safeFreq = Number.isFinite(freq) ? Math.max(20, Math.min(nyquist, freq)) : 261.63;
+    const safeVel = Number.isFinite(velocity) ? Math.max(0.01, Math.min(1.0, velocity)) : 0.6;
+    freq = safeFreq;
+    velocity = safeVel;
 
     const hold = Boolean(isHold || duration === 20.0 || duration === Infinity || (typeof duration === 'number' && !isFinite(duration)));
     this.isHold = hold;
@@ -424,11 +439,13 @@ export class FeltPianoVoice {
     }
 
     const isCS80 = (this.currentWaveform === 'cs80' || this.currentWaveform === 'vangelis');
-    const feltDamp = params.tone ?? 0.65; // 0.0 (darkest felt) to 1.0 (bright chime / brass)
-    const hammerThump = isCS80 ? 0 : (params.hammer ?? 0.50); // Bypassed in CS-80 mode
-    const decayMultiplier = params.decay ?? 1.0;
-    const releaseTime = params.release ?? 1.8;
+    const feltDamp = Number.isFinite(params?.tone) ? params.tone : 0.65; // 0.0 (darkest felt) to 1.0 (bright chime / brass)
+    const hammerThump = isCS80 ? 0 : (Number.isFinite(params?.hammer) ? params.hammer : 0.50); // Bypassed in CS-80 mode
+    const decayMultiplier = Number.isFinite(params?.decay) ? params.decay : 1.0;
+    const releaseTime = Number.isFinite(params?.release) ? params.release : 1.8;
     this._decayMultiplier = decayMultiplier;
+    this._lastReleaseTimeParam = releaseTime;
+    this._lastDurationParam = (typeof duration === 'number' && Number.isFinite(duration)) ? duration : 3.5;
 
     this.currentFreq = freq;
     this.currentVelocity = velocity;
@@ -500,6 +517,11 @@ export class FeltPianoVoice {
       osc2Vol = 0.46;
       bodyFormantHz = 1150; // Warm analog synth chassis presence
     }
+
+    hammerCutoff = Math.min(nyquist, hammerCutoff);
+    bodyFormantHz = Math.min(nyquist, bodyFormantHz);
+    maxCutoff = Math.min(nyquist, maxCutoff);
+    restCutoff = Math.min(nyquist, restCutoff);
 
     // Check if voice is being stolen / re-triggered while currently sounding
     const curEstGain = this.getEstimatedGain(cancelTime);
@@ -707,6 +729,14 @@ export class FeltPianoVoice {
       const noiseSource = ctx.createBufferSource();
       noiseSource.buffer = this.hammerBuffer;
       noiseSource.connect(this.hammerGain);
+      noiseSource.onended = () => {
+        try {
+          noiseSource.disconnect();
+        } catch (e) {}
+        if (this.currentHammerSource === noiseSource) {
+          this.currentHammerSource = null;
+        }
+      };
 
       let hfHeld = false;
       if (typeof this.hammerFilter.frequency.cancelAndHoldAtTime === 'function') {
@@ -767,12 +797,12 @@ export class FeltPianoVoice {
       // CS-80 Expressive Filter Brass Swell (emulating polyphonic aftertouch pressure)
       const brassAttackTime = 0.095;
       const brassDecayTime = 0.50 * decayMultiplier;
-      const brassStartCutoff = Math.max(280, Math.min(2400, freq * 1.4));
-      const brassMaxCutoff = Math.min(16000, Math.max(freq * 4.5, 3200 + feltDamp * 8000 * velocity));
-      const brassSustainCutoff = Math.min(12000, Math.max(freq * 2.5, 1800 + feltDamp * 5000 * velocity));
+      const brassStartCutoff = Math.min(nyquist, Math.max(280, Math.min(2400, freq * 1.4)));
+      const brassMaxCutoff = Math.min(nyquist, Math.min(16000, Math.max(freq * 4.5, 3200 + feltDamp * 8000 * velocity)));
+      const brassSustainCutoff = Math.min(nyquist, Math.min(12000, Math.max(freq * 2.5, 1800 + feltDamp * 5000 * velocity)));
 
-      const curCutoff1 = Math.max(20, Math.min(20000, this.filter1.frequency.value || brassStartCutoff));
-      const curCutoff2 = Math.max(20, Math.min(20000, this.filter2.frequency.value || brassStartCutoff));
+      const curCutoff1 = Math.max(20, Math.min(nyquist, this.filter1.frequency.value || brassStartCutoff));
+      const curCutoff2 = Math.max(20, Math.min(nyquist, this.filter2.frequency.value || brassStartCutoff));
 
       let f1Held = false;
       if (typeof this.filter1.frequency.cancelAndHoldAtTime === 'function') {
@@ -812,8 +842,8 @@ export class FeltPianoVoice {
       }
     } else {
       // Anchor current filter cutoff to eliminate biquad filter leap clicks
-      const curCutoff1 = Math.max(20, Math.min(20000, this.filter1.frequency.value || restCutoff));
-      const curCutoff2 = Math.max(20, Math.min(20000, this.filter2.frequency.value || restCutoff));
+      const curCutoff1 = Math.max(20, Math.min(nyquist, this.filter1.frequency.value || restCutoff));
+      const curCutoff2 = Math.max(20, Math.min(nyquist, this.filter2.frequency.value || restCutoff));
 
       let f2Held = false;
       if (typeof this.filter1.frequency.cancelAndHoldAtTime === 'function') {
@@ -844,10 +874,10 @@ export class FeltPianoVoice {
       let effectiveMaxCutoff = maxCutoff;
       if (this.currentWaveform === 'sine') {
         // Pure sine wave has no upper harmonics: capping filter cutoff prevents resonant noise burst
-        effectiveMaxCutoff = Math.min(2200, Math.max(freq * 1.5, 600 + feltDamp * 600 * velocity));
+        effectiveMaxCutoff = Math.min(nyquist, Math.min(2200, Math.max(freq * 1.5, 600 + feltDamp * 600 * velocity)));
       }
       if (!isCS80) {
-        effectiveMaxCutoff = Math.max(effectiveMaxCutoff, restCutoff);
+        effectiveMaxCutoff = Math.min(nyquist, Math.max(effectiveMaxCutoff, restCutoff));
       }
 
       this.filter1.frequency.linearRampToValueAtTime(effectiveMaxCutoff, filterAttackTarget);
@@ -1035,19 +1065,28 @@ export class FeltPianoVoice {
     }
     this._currentVoiceGain = 0.0001;
     if (isCS80 && this.currentFreq) {
-      const curCutoff1 = Math.max(20, Math.min(20000, this.filter1.frequency.value || 800));
-      const curCutoff2 = Math.max(20, Math.min(20000, this.filter2.frequency.value || 800));
+      const nyquist = this._nyquistCeiling();
+      const curCutoff1 = Math.max(20, Math.min(nyquist, this.filter1.frequency.value || 800));
+      const curCutoff2 = Math.max(20, Math.min(nyquist, this.filter2.frequency.value || 800));
+      let fHeld = false;
       if (typeof this.filter1.frequency.cancelAndHoldAtTime === 'function') {
-        this.filter1.frequency.cancelAndHoldAtTime(cancelTime);
-        this.filter2.frequency.cancelAndHoldAtTime(cancelTime);
-      } else {
+        try {
+          this.filter1.frequency.cancelAndHoldAtTime(cancelTime);
+          this.filter2.frequency.cancelAndHoldAtTime(cancelTime);
+          fHeld = true;
+        } catch (e) {
+          fHeld = false;
+        }
+      }
+      if (!fHeld) {
         this.filter1.frequency.cancelScheduledValues(cancelTime);
         this.filter2.frequency.cancelScheduledValues(cancelTime);
         this.filter1.frequency.setValueAtTime(curCutoff1, cancelTime);
         this.filter2.frequency.setValueAtTime(curCutoff2, cancelTime);
       }
-      this.filter1.frequency.exponentialRampToValueAtTime(Math.max(160, this.currentFreq * 1.1), releaseTarget);
-      this.filter2.frequency.exponentialRampToValueAtTime(Math.max(160, this.currentFreq * 1.1), releaseTarget);
+      const endCut = Math.min(nyquist, Math.max(160, this.currentFreq * 1.1));
+      this.filter1.frequency.exponentialRampToValueAtTime(endCut, releaseTarget);
+      this.filter2.frequency.exponentialRampToValueAtTime(endCut, releaseTarget);
     }
 
     const releaseStartTime = this.startTime;
@@ -1074,14 +1113,22 @@ export class FeltPianoVoice {
    */
   updateDecay(newDecay) {
     if (!this.isActive) return;
-    this._decayMultiplier = Math.max(0.2, Math.min(3.5, newDecay));
+    const safeDecay = Number.isFinite(newDecay) ? newDecay : (this._decayMultiplier ?? 1.0);
+    this._decayMultiplier = Math.max(0.2, Math.min(3.5, safeDecay));
     const now = this.ctx.currentTime;
+    const cancelTime = Math.max(now, this.ctx.currentTime);
     const isCS80 = (this.currentWaveform === 'cs80' || this.currentWaveform === 'vangelis');
     const relScale = this._decayMultiplier;
     const relDuration = isCS80 ? 0.65 : (0.10 + 0.32 * Math.pow(relScale, 1.35));
 
+    const midi = Number.isFinite(this.currentMidi)
+      ? this.currentMidi
+      : Math.round(69 + 12 * Math.log2(Math.max(20, this.currentFreq || 261.63) / 440));
+    const registerDecayMult = (midi < 48)
+      ? (1.45 + Math.max(0, (48 - midi) * 0.04))
+      : (midi >= 72 ? Math.max(0.48, 1.0 - (midi - 71) * 0.035) : 1.0);
+
     if (this._isReleased && this._releaseTime) {
-      const cancelTime = Math.max(now, this.ctx.currentTime);
       let held = false;
       if (typeof this.voiceGain.gain.cancelAndHoldAtTime === 'function') {
         try {
@@ -1098,10 +1145,139 @@ export class FeltPianoVoice {
       if (typeof this.voiceGain.gain.setValueAtTime === 'function') {
         this.voiceGain.gain.setValueAtTime(Math.max(0.0002, curGain), cancelTime);
       }
+      this._releaseTime = cancelTime;
+      this._releaseStartGain = Math.max(0.0002, curGain);
       const releaseTarget = Math.max(cancelTime + relDuration, this.ctx.currentTime + 0.01);
       this.voiceGain.gain.exponentialRampToValueAtTime(0.0001, releaseTarget);
       if (typeof this.voiceGain.gain.linearRampToValueAtTime === 'function') {
         this.voiceGain.gain.linearRampToValueAtTime(0.0, releaseTarget + 0.005);
+      }
+
+      if (this.oscMixer && this.oscMixer.gain) {
+        let mHeld = false;
+        if (typeof this.oscMixer.gain.cancelAndHoldAtTime === 'function') {
+          try {
+            this.oscMixer.gain.cancelAndHoldAtTime(cancelTime);
+            mHeld = true;
+          } catch (e) {
+            mHeld = false;
+          }
+        }
+        if (!mHeld && typeof this.oscMixer.gain.cancelScheduledValues === 'function') {
+          this.oscMixer.gain.cancelScheduledValues(cancelTime);
+          const curMixer = (typeof this.oscMixer.gain.value === 'number' && isFinite(this.oscMixer.gain.value))
+            ? Math.max(0.0, Math.min(1.0, this.oscMixer.gain.value))
+            : 1.0;
+          if (typeof this.oscMixer.gain.setValueAtTime === 'function') {
+            this.oscMixer.gain.setValueAtTime(curMixer, cancelTime);
+          }
+        }
+        if (typeof this.oscMixer.gain.linearRampToValueAtTime === 'function') {
+          this.oscMixer.gain.linearRampToValueAtTime(0.0, releaseTarget + 0.005);
+        }
+      }
+
+      if (this._releaseTimer) {
+        clearTimeout(this._releaseTimer);
+        this._releaseTimer = null;
+      }
+      const releaseStartTime = this.startTime;
+      const releaseLifetimeMs = Math.max(100, Math.ceil((releaseTarget + 0.15 - cancelTime) * 1000));
+      this._releaseTimer = setTimeout(() => {
+        if (this.startTime === releaseStartTime && !this.isHold) {
+          this.isActive = false;
+          this._isReleased = false;
+          if (this._pendingOscillatorWaveform) {
+            this.applyOscillatorWaveforms(this._pendingOscillatorWaveform);
+            this._pendingOscillatorWaveform = null;
+          }
+          if (this.synth) {
+            this.synth._updatePolyphonicHeadroom();
+          }
+        }
+        this._releaseTimer = null;
+      }, releaseLifetimeMs);
+    } else if (!this.isHold) {
+      // Active non-held generative / one-shot voice currently ringing out
+      const freq = Math.max(20, this.currentFreq || 261.63);
+      const releaseParam = Number.isFinite(this._lastReleaseTimeParam) ? this._lastReleaseTimeParam : 1.8;
+      const newNoteLifetime = isCS80
+        ? Math.max(this._lastDurationParam || 3.5, 3.5) * this._decayMultiplier
+        : Math.max(1.2, Math.min(10.0, 7.5 * Math.pow(220 / Math.max(60, freq), 0.45))) * this._decayMultiplier * registerDecayMult;
+      const noteStart = Number.isFinite(this._lastNoteStartTime) ? this._lastNoteStartTime : (this.startTime || cancelTime);
+      const atk = Number.isFinite(this._lastAttackTime) ? this._lastAttackTime : 0.008;
+      const sustainTarget = Number.isFinite(this._lastSustainTarget) ? this._lastSustainTarget : (noteStart + atk + 0.5);
+
+      if (cancelTime >= sustainTarget) {
+        let held = false;
+        if (typeof this.voiceGain.gain.cancelAndHoldAtTime === 'function') {
+          try {
+            this.voiceGain.gain.cancelAndHoldAtTime(cancelTime);
+            held = true;
+          } catch (e) {
+            held = false;
+          }
+        }
+        const curGain = Math.max(0.0002, this.getEstimatedGain(cancelTime));
+        if (!held && typeof this.voiceGain.gain.cancelScheduledValues === 'function') {
+          this.voiceGain.gain.cancelScheduledValues(cancelTime);
+          if (typeof this.voiceGain.gain.setValueAtTime === 'function') {
+            this.voiceGain.gain.setValueAtTime(curGain, cancelTime);
+          }
+        }
+        const newDecayEndTarget = Math.max(cancelTime + 0.05, noteStart + atk + newNoteLifetime + releaseParam);
+        this.voiceGain.gain.exponentialRampToValueAtTime(0.0001, newDecayEndTarget);
+        if (typeof this.voiceGain.gain.linearRampToValueAtTime === 'function') {
+          this.voiceGain.gain.linearRampToValueAtTime(0.0, newDecayEndTarget + 0.005);
+        }
+        this._lastSustainLevel = curGain;
+        this._lastSustainTarget = cancelTime;
+        this._lastDecayEndTarget = newDecayEndTarget;
+
+        if (this.oscMixer && this.oscMixer.gain) {
+          let mHeld = false;
+          if (typeof this.oscMixer.gain.cancelAndHoldAtTime === 'function') {
+            try {
+              this.oscMixer.gain.cancelAndHoldAtTime(cancelTime);
+              mHeld = true;
+            } catch (e) {
+              mHeld = false;
+            }
+          }
+          if (!mHeld && typeof this.oscMixer.gain.cancelScheduledValues === 'function') {
+            this.oscMixer.gain.cancelScheduledValues(cancelTime);
+            const curMixer = (typeof this.oscMixer.gain.value === 'number' && isFinite(this.oscMixer.gain.value))
+              ? Math.max(0.0, Math.min(1.0, this.oscMixer.gain.value))
+              : 1.0;
+            if (typeof this.oscMixer.gain.setValueAtTime === 'function') {
+              this.oscMixer.gain.setValueAtTime(curMixer, cancelTime);
+            }
+          }
+          if (typeof this.oscMixer.gain.linearRampToValueAtTime === 'function') {
+            this.oscMixer.gain.linearRampToValueAtTime(0.0, newDecayEndTarget + 0.005);
+          }
+        }
+
+        if (this._decayTimer) {
+          clearTimeout(this._decayTimer);
+          this._decayTimer = null;
+        }
+        const activeStartTime = this.startTime;
+        const decayLifetimeMs = Math.max(100, Math.ceil((newDecayEndTarget + 0.15 - cancelTime) * 1000));
+        this._decayTimer = setTimeout(() => {
+          if (this.startTime === activeStartTime && !this.isHold) {
+            this.isActive = false;
+            this._isReleased = false;
+            if (this._pendingOscillatorWaveform) {
+              this.applyOscillatorWaveforms(this._pendingOscillatorWaveform);
+              this._pendingOscillatorWaveform = null;
+            }
+            if (this.synth) {
+              this.synth._updatePolyphonicHeadroom();
+            }
+          }
+          this._decayTimer = null;
+        }, decayLifetimeMs);
       }
     }
   }
@@ -1600,16 +1776,19 @@ export class FeltPianoSynthesizer {
   }
 
   setTone(val) {
-    this.params.tone = Math.max(0, Math.min(1.0, val));
+    const safeVal = Number.isFinite(val) ? val : this.params.tone;
+    this.params.tone = Math.max(0, Math.min(1.0, safeVal));
     if (this.ctx) {
       const now = this.ctx.currentTime;
+      const sr = (Number.isFinite(this.ctx.sampleRate) && this.ctx.sampleRate > 0) ? this.ctx.sampleRate : 48000;
+      const nyquist = Math.max(800, sr * 0.49);
 
       // Modulate shared sympathetic resonance filters to track acoustic felt damping
       if (this.sympatheticFilter1 && this.sympatheticFilter1.frequency && this.sympatheticFilter1.frequency.setTargetAtTime) {
-        this.sympatheticFilter1.frequency.setTargetAtTime(220 + this.params.tone * 120, now, 0.025);
+        this.sympatheticFilter1.frequency.setTargetAtTime(Math.min(nyquist, 220 + this.params.tone * 120), now, 0.025);
       }
       if (this.sympatheticFilter2 && this.sympatheticFilter2.frequency && this.sympatheticFilter2.frequency.setTargetAtTime) {
-        this.sympatheticFilter2.frequency.setTargetAtTime(440 + this.params.tone * 200, now, 0.025);
+        this.sympatheticFilter2.frequency.setTargetAtTime(Math.min(nyquist, 440 + this.params.tone * 200), now, 0.025);
       }
       if (this.sympatheticGain && this.sympatheticGain.gain && this.sympatheticGain.gain.setTargetAtTime) {
         const sympScale = (this.params.sympathetic ?? 0.45) / 0.45;
@@ -1631,26 +1810,39 @@ export class FeltPianoSynthesizer {
           } else {
             rest = Math.min(2800, Math.max(160, voice.currentFreq * (0.9 + this.params.tone * 0.6)));
           }
+          rest = Math.min(nyquist, rest);
 
-          if (voice.filter1 && voice.filter1.frequency && voice.filter1.frequency.setTargetAtTime) {
-            if (typeof voice.filter1.frequency.cancelAndHoldAtTime === 'function') {
-              voice.filter1.frequency.cancelAndHoldAtTime(now);
+          [voice.filter1, voice.filter2].forEach(flt => {
+            if (flt && flt.frequency && flt.frequency.setTargetAtTime) {
+              let fHeld = false;
+              if (typeof flt.frequency.cancelAndHoldAtTime === 'function') {
+                try {
+                  flt.frequency.cancelAndHoldAtTime(now);
+                  fHeld = true;
+                } catch (e) {
+                  fHeld = false;
+                }
+              }
+              if (!fHeld && typeof flt.frequency.cancelScheduledValues === 'function') {
+                const curCut = (typeof flt.frequency.value === 'number' && Number.isFinite(flt.frequency.value))
+                  ? Math.min(nyquist, Math.max(20, flt.frequency.value))
+                  : rest;
+                flt.frequency.cancelScheduledValues(now);
+                if (typeof flt.frequency.setValueAtTime === 'function') {
+                  flt.frequency.setValueAtTime(curCut, now);
+                }
+              }
+              flt.frequency.setTargetAtTime(rest, now, 0.025);
             }
-            voice.filter1.frequency.setTargetAtTime(rest, now, 0.025);
-          }
-          if (voice.filter2 && voice.filter2.frequency && voice.filter2.frequency.setTargetAtTime) {
-            if (typeof voice.filter2.frequency.cancelAndHoldAtTime === 'function') {
-              voice.filter2.frequency.cancelAndHoldAtTime(now);
-            }
-            voice.filter2.frequency.setTargetAtTime(rest, now, 0.025);
-          }
+          });
         }
       }
     }
   }
 
   setSympathetic(val) {
-    this.params.sympathetic = Math.max(0, Math.min(1.0, val));
+    const safeVal = Number.isFinite(val) ? val : this.params.sympathetic;
+    this.params.sympathetic = Math.max(0, Math.min(1.0, safeVal));
     if (this.ctx && this.sympatheticGain && this.sympatheticGain.gain) {
       const now = this.ctx.currentTime;
       const sympScale = this.params.sympathetic / 0.45;
@@ -1664,11 +1856,13 @@ export class FeltPianoSynthesizer {
   }
 
   setHammer(val) {
-    this.params.hammer = Math.max(0, Math.min(1.0, val));
+    const safeVal = Number.isFinite(val) ? val : this.params.hammer;
+    this.params.hammer = Math.max(0, Math.min(1.0, safeVal));
   }
 
   setDecay(val) {
-    this.params.decay = Math.max(0.2, Math.min(3.5, val));
+    const safeVal = Number.isFinite(val) ? val : this.params.decay;
+    this.params.decay = Math.max(0.2, Math.min(3.5, safeVal));
     if (this.voices) {
       for (const voice of this.voices) {
         if (voice && voice.isActive && typeof voice.updateDecay === 'function') {
@@ -1679,11 +1873,13 @@ export class FeltPianoSynthesizer {
   }
 
   setRelease(val) {
-    this.params.release = Math.max(0.1, Math.min(5.0, val));
+    const safeVal = Number.isFinite(val) ? val : this.params.release;
+    this.params.release = Math.max(0.1, Math.min(5.0, safeVal));
   }
 
   setVolume(vol) {
-    this.params.volume = Math.max(0, Math.min(1.0, vol));
+    const safeVal = Number.isFinite(vol) ? vol : this.params.volume;
+    this.params.volume = Math.max(0, Math.min(1.0, safeVal));
     this._updatePolyphonicHeadroom();
   }
 }

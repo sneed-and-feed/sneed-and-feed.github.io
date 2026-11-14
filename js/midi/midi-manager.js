@@ -29,6 +29,16 @@ export class BraunMidiManager {
     /** @type {Set<any>} Connected MIDI input ports currently monitored */
     this._attachedInputs = new Set();
 
+    /** @type {WeakMap<object, number|undefined>} Trigger generation IDs of allocated voices */
+    this._voiceTriggerIds = new WeakMap();
+
+    /** @type {Map<number, { velocity: number, sourcePort: any }>} Notes received while async startAudio() is waking */
+    this._pendingWakeNotes = new Map();
+
+    /** @type {Map<any, Set<number>>} Currently held MIDI notes tracked per hardware input port */
+    this._portHeldNotes = new Map();
+
+    this._sustainPort = null;
     this._runningStatus = null;
     this._lastHandledEvent = null;
     this._lastHandledData = null;
@@ -115,6 +125,30 @@ export class BraunMidiManager {
       this._attachInput(port);
     } else if (port.state === 'disconnected') {
       this._detachInput(port);
+      this._releasePortState(port);
+    }
+  }
+
+  _releasePortState(port) {
+    if (!port) return;
+    for (const [note, pending] of Array.from(this._pendingWakeNotes.entries())) {
+      if (pending && pending.sourcePort === port) {
+        this._pendingWakeNotes.delete(note);
+      }
+    }
+    const heldSet = this._portHeldNotes.get(port);
+    if (heldSet && heldSet.size > 0) {
+      const notes = Array.from(heldSet);
+      this._portHeldNotes.delete(port);
+      for (const note of notes) {
+        this._handleNoteOff(note, port);
+      }
+    } else {
+      this._portHeldNotes.delete(port);
+    }
+    if (this._sustainPort === port && this.isSustainDown) {
+      this._sustainPort = null;
+      this._handleControlChange(64, 0, null);
     }
   }
 
@@ -183,23 +217,24 @@ export class BraunMidiManager {
     const command = status & 0xF0;
     const data1 = data[dataOffset] !== undefined ? data[dataOffset] : 0;
     const data2 = data[dataOffset + 1] !== undefined ? data[dataOffset + 1] : 0;
+    const sourcePort = (event && typeof event === 'object') ? (event.target || event.currentTarget || null) : null;
 
     switch (command) {
       case 0x90: // Note-On
         if (data2 === 0) {
           // Standard MIDI Note-On with velocity 0 is treated as Note-Off
-          this._handleNoteOff(data1);
+          this._handleNoteOff(data1, sourcePort);
         } else {
-          this._handleNoteOn(data1, data2);
+          this._handleNoteOn(data1, data2, sourcePort);
         }
         break;
 
       case 0x80: // Note-Off
-        this._handleNoteOff(data1);
+        this._handleNoteOff(data1, sourcePort);
         break;
 
       case 0xB0: // Control Change
-        this._handleControlChange(data1, data2);
+        this._handleControlChange(data1, data2, sourcePort);
         break;
 
       case 0xE0: // Pitch Bend
@@ -215,21 +250,50 @@ export class BraunMidiManager {
    * Handle Note-On with velocity scaling and auto-power wake
    * @param {number} note - MIDI note number (0-127)
    * @param {number} velocity - Raw MIDI velocity (1-127)
+   * @param {any} [sourcePort=null]
    */
-  _handleNoteOn(note, velocity) {
+  _handleNoteOn(note, velocity, sourcePort = null) {
+    if (sourcePort) {
+      if (!this._portHeldNotes.has(sourcePort)) {
+        this._portHeldNotes.set(sourcePort, new Set());
+      }
+      this._portHeldNotes.get(sourcePort).add(note);
+    }
+
     // Auto-wake audio context / engine if suspended or power is off
+    let wakePromise = null;
     if (this.app) {
       const isSuspended = Boolean(this.engine?.ctx && this.engine.ctx.state === 'suspended');
       const isPowerOff = !this.app.isPowerOn;
       if ((isSuspended || isPowerOff) && typeof this.app.startAudio === 'function') {
-        this.app.startAudio().catch(() => {});
+        try {
+          wakePromise = Promise.resolve(this.app.startAudio()).catch(() => {});
+        } catch (e) {
+          wakePromise = null;
+        }
       }
     }
 
     if (!this.engine || !this.engine.feltPiano || typeof this.engine.feltPiano.playNote !== 'function') {
+      if (wakePromise) {
+        this._pendingWakeNotes.set(note, { velocity, sourcePort });
+        wakePromise.then(() => {
+          const pending = this._pendingWakeNotes.get(note);
+          if (!pending) return;
+          this._pendingWakeNotes.delete(note);
+          if (this.engine && this.engine.feltPiano && typeof this.engine.feltPiano.playNote === 'function' && (!this.app || this.app.isPowerOn)) {
+            this._dispatchNoteOnNow(note, pending.velocity);
+          }
+        });
+      }
       return;
     }
 
+    this._pendingWakeNotes.delete(note);
+    this._dispatchNoteOnNow(note, velocity);
+  }
+
+  _dispatchNoteOnNow(note, velocity) {
     const a4 = (this.engine && typeof this.engine.a4 === 'number') ? this.engine.a4 : 440;
     const freq = midiToFrequency(note, a4);
     const normVelocity = Math.max(0.001, Math.min(1.0, velocity / 127.0));
@@ -250,6 +314,9 @@ export class BraunMidiManager {
 
     if (voice) {
       voice.currentMidi = note;
+      if (typeof voice === 'object') {
+        this._voiceTriggerIds.set(voice, voice.triggerId);
+      }
 
       // Remove stolen voice from any other note's set in activeNotes
       for (const [otherNote, voiceSet] of this.activeNotes.entries()) {
@@ -276,11 +343,44 @@ export class BraunMidiManager {
     }
   }
 
+  _isVoiceStolen(voice, expectedNote = undefined) {
+    if (!voice || typeof voice !== 'object') return false;
+    if (expectedNote !== undefined && typeof voice.currentMidi === 'number' && voice.currentMidi !== expectedNote) {
+      return true;
+    }
+    if (this._voiceTriggerIds.has(voice)) {
+      const recordedId = this._voiceTriggerIds.get(voice);
+      if (recordedId !== undefined && voice.triggerId !== undefined && recordedId !== voice.triggerId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * Handle Note-Off with sustain pedal voice latching
    * @param {number} note - MIDI note number (0-127)
+   * @param {any} [sourcePort=null]
    */
-  _handleNoteOff(note) {
+  _handleNoteOff(note, sourcePort = null) {
+    if (sourcePort && this._portHeldNotes.has(sourcePort)) {
+      const portSet = this._portHeldNotes.get(sourcePort);
+      portSet.delete(note);
+      if (portSet.size === 0) {
+        this._portHeldNotes.delete(sourcePort);
+      }
+    } else if (!sourcePort && this._portHeldNotes.size > 0) {
+      for (const [port, portSet] of Array.from(this._portHeldNotes.entries())) {
+        portSet.delete(note);
+        if (portSet.size === 0) this._portHeldNotes.delete(port);
+      }
+    }
+
+    // Cancel any pending cold-wake Note-On if released before AudioContext finishes waking
+    if (this._pendingWakeNotes.has(note)) {
+      this._pendingWakeNotes.delete(note);
+    }
+
     if (this.engine && typeof this.engine.noteOff === 'function') {
       this.engine.noteOff(note);
     }
@@ -293,15 +393,15 @@ export class BraunMidiManager {
 
     for (const voice of voices) {
       // If voice was stolen to sound another note, do not release or latch it
-      if (voice && typeof voice.currentMidi === 'number' && voice.currentMidi !== note) {
+      if (this._isVoiceStolen(voice, note)) {
         continue;
       }
       if (this.isSustainDown) {
         // Pedal held down: latch voices to sound until pedal released
         this.latchedVoices.add(voice);
       } else {
-        // Pedal up: release voices immediately
-        if (voice && typeof voice.release === 'function') {
+        // Pedal up: release voices immediately (skip duplicate release if engine.noteOff already released it)
+        if (voice && typeof voice.release === 'function' && !voice._isReleased) {
           voice.release();
         }
       }
@@ -313,17 +413,20 @@ export class BraunMidiManager {
    * Handle Control Change (Sustain Pedal CC 64, Mod Wheel CC 1, All Notes Off CC 120/123)
    * @param {number} cc - Controller number
    * @param {number} value - Controller value (0-127)
+   * @param {any} [sourcePort=null]
    */
-  _handleControlChange(cc, value) {
+  _handleControlChange(cc, value, sourcePort = null) {
     if (cc === 64) {
       // CC 64: Sustain Pedal (Damper)
       if (value >= 64) {
         this.isSustainDown = true;
+        this._sustainPort = sourcePort || this._sustainPort;
         if (this.engine && typeof this.engine.setSustainPedal === 'function') {
           this.engine.setSustainPedal(true);
         }
       } else {
         this.isSustainDown = false;
+        this._sustainPort = null;
         if (this.engine && typeof this.engine.setSustainPedal === 'function') {
           this.engine.setSustainPedal(false);
         }
@@ -335,10 +438,13 @@ export class BraunMidiManager {
           }
         }
 
-        // Release only voices in latchedVoices whose physical key is NOT currently held
+        // Release only voices in latchedVoices whose physical key is NOT currently held and NOT stolen
         for (const voice of this.latchedVoices) {
+          if (this._isVoiceStolen(voice)) {
+            continue;
+          }
           if (!heldVoices.has(voice)) {
-            if (voice && typeof voice.release === 'function') {
+            if (voice && typeof voice.release === 'function' && !voice._isReleased) {
               voice.release();
             }
           }
@@ -382,6 +488,9 @@ export class BraunMidiManager {
    */
   panic() {
     this._runningStatus = null;
+    this._pendingWakeNotes.clear();
+    this._portHeldNotes.clear();
+    this._sustainPort = null;
     for (const voices of this.activeNotes.values()) {
       for (const voice of voices) {
         if (voice && typeof voice.release === 'function') {
