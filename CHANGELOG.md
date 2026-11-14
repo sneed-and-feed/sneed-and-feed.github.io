@@ -9,18 +9,18 @@ All notable changes, architectural modernizations, DSP optimizations, and bug re
   * Added unconditional cold-boot storage latch purging (`localStorage` / `sessionStorage`), HTML `<select autocomplete="off">` form-restoration blocking across all 5 `<select>` elements, synchronous pre-boot drone toggle commitment (`_startingAudioPromise` deduplication), and `isPowerOn !== false` guards in `handleInterruptionRecovery`.
   * Fixed `resetAllKnobs()` so `#toggle-freeze .braun-led` extinguishes cleanly alongside button state, and stopped `_initJuceBridge()` polling immediately if `window` tears down.
 * **Web Audio DSP Numerical Hardening & Anti-Click Scheduling:**
-  * **Monotonic** $C^1$ **Hermite Limiter Knee (`wavefolder.js`):** Fixed `applySmoothBoundaryKnee(y, knee)` so inputs $|y| \ge 1.0$ clamp strictly to $\operatorname{sgn}(y)$ instead of folding back via the cubic Hermite polynomial in `makeFreezeLimiterCurve` and `makeShimmerLimiterCurve`; added `Number.isFinite` and `drive <= 1e-4` guards across all 6 curve generators.
+  * **Monotonic** $C^1$ **Hermite Limiter Knee (`wavefolder.js`):** Fixed `applySmoothBoundaryKnee(y, knee)` so inputs $|y| \ge 1.0$ clamp strictly to $\mathrm{sgn}(y)$ instead of folding back via the cubic Hermite polynomial in `makeFreezeLimiterCurve` and `makeShimmerLimiterCurve`; added `Number.isFinite` and `drive <= 1e-4` guards across all 6 curve generators.
   * **Nyquist Ceiling & Gecko/Firefox Anchored Ramps (`tape-delay.js`, `shimmer-reverb.js`, `drone-voice.js`, `felt-piano.js`):** Clamped all dynamic filter cutoffs and positive LFO modulation peaks to $\le 0.49 f_s$, wrapped `cancelAndHoldAtTime` in `try/catch` with anchored `cancelScheduledValues` + `setValueAtTime` fallback, and added `dispose()` cleanup methods.
   * **Shimmer RT60 Scaling & Drone Rapid Re-Toggle Continuity:** Preserved `setDecay()` RT60 `decayScale` when adjusting `setShimmer()`, fixed `SolarDroneVoice._getInstantGain()` during `!isActive` fade-outs to prevent rapid OFF->ON snap clicks, and preserved `1.70x` Sub-Bass gain compensation across `powerOff()` -> `init()` cycles.
   * **Felt Piano Active `updateDecay()` & Hammer Graph Leak Fix (`felt-piano.js`):** Extended `updateDecay(newDecay)` to reschedule both released and active non-held ringing voices (including the $1.35\times$ bass register multiplier for MIDI notes $< 48$) and disconnected one-shot hammer `AudioBufferSourceNode` instances in `onended`.
-* **Sustain Pedal (`CC 64`), Stolen-Voice `triggerId` & Web MIDI Hot-Unplug Safety:**
-  * Wired `AudioEngine.noteOff()` and `AudioEngine.setSustainPedal()` with monotonic `triggerId` voice-generation tokens so `CC 64` genuinely sustains `FeltPianoVoice` notes on the real engine without ever prematurely cutting off stolen voices.
+* **Sustain Pedal (`CC 64`), Multi-Voice `_noteVoiceMap`, Stolen-Voice `triggerId` & Web MIDI Hot-Unplug Safety:**
+  * Wired `AudioEngine.noteOff()` and `AudioEngine.setSustainPedal()` with per-note multi-voice arrays (`_noteVoiceMap`) and monotonic `triggerId` voice-generation tokens so `CC 64` genuinely sustains `FeltPianoVoice` notes (including overlapping strikes on held notes and retuned `440 <-> 432 Hz` pedal-latched re-strikes) without ever prematurely cutting off stolen voices or orphaning prior latched voices.
   * Preserved first-strike MIDI notes during asynchronous cold `startAudio()` wake (`_pendingWakeNotes`) and automatically released port-held notes and sustain pedal latches when a USB MIDI controller disconnects mid-performance (`midi-manager.js`), plus full `engine.noteOff()` cleanup on window `blur` (`keyboard.js`).
 * **Static HTTP Server Security Hardening (`server.js`):**
   * Added `createStaticServer()` with `HEAD`/`OPTIONS` support (`405` on unsupported methods), safe `decodeURIComponent` (`400` on malformed `%` or null bytes), strict `path.resolve`/`path.relative` root containment (`403` on encoded `/%2e%2e/` traversal and dotfiles like `/.git/`), `X-Content-Type-Options: nosniff`, `Content-Length`, and expanded `.wasm`/font/source-map MIME coverage.
-* **Sibling Suite Showcase Alignment & Certified 531-Test Suite:**
+* **Sibling Suite Showcase Alignment & Certified 533-Test Suite:**
   * Updated showcase & release links across `index.html` and `README.md` (`BRAUN AS-42 v1.5.0`, `BRAUN RB-26 v1.5.0`, `BRAUN MR-16 v1.1.0`, `Bumbler XD v1.1.0`).
-  * Certified **100% PASS** across **531 Node.js automated tests** (`120` suites, including `test/v150-audit-regressions.test.js`) and **16/16** `verify:checklist` criteria.
+  * Certified **100% PASS** across **533 Node.js automated tests** (`120` suites, including 19 regression tests in `test/v150-audit-regressions.test.js`) and **16/16** `verify:checklist` criteria.
 
 ---
 

@@ -4,7 +4,7 @@
 [![macOS AU & VST3](https://img.shields.io/badge/macOS-AU%20%7C%20VST3%20%7C%20Standalone-white?style=for-the-badge&logo=apple&logoColor=black)](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-macOS-Universal.zip)
 [![Windows VST3](https://img.shields.io/badge/Windows-VST3%20%7C%20Standalone-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-Windows-x64.zip)
 [![Linux VST3](https://img.shields.io/badge/Linux-VST3%20%7C%20Standalone-FCC624?style=for-the-badge&logo=linux&logoColor=black)](#native-plugins--downloads)
-[![Verification Checklist](https://img.shields.io/badge/Verification-100%25%20PASS%20(531%2F531%20Web%20%7C%2016%2F16%20Checklist)-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white)](VERIFICATION_CHECKLIST.md)
+[![Verification Checklist](https://img.shields.io/badge/Verification-100%25%20PASS%20(533%2F533%20Web%20%7C%2016%2F16%20Checklist)-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white)](VERIFICATION_CHECKLIST.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-4A4A4A?style=for-the-badge)](LICENSE)
 
 > **Legal Homage Notice:** Not affiliated with Braun GmbH. Dieter Rams inspired design homage. Published by Sneed's Feed & Seed Ltd.  
@@ -94,7 +94,7 @@ The AS 42 unites three complementary ambient acoustics into a tactile, foolproof
 
 * 🏛️ [**ARCHITECTURE.md**](ARCHITECTURE.md) — Comprehensive technical datasheet (`v1.5.0`): physical modeling mechanics, Nyquist-bounded filter topologies, FDN shimmer matrix, standby/BFCache lifecycle safety, and full 38-parameter APVTS mapping.
 * 📋 [**CHANGELOG.md**](CHANGELOG.md) — Detailed engineering changelog from `v1.3.0` through `v1.5.0` modernizations.
-* 🔬 [**VERIFICATION_CHECKLIST.md**](VERIFICATION_CHECKLIST.md) — Certified test harness report (`531/531` Web Audio, MIDI, UI & HTTP server tests across `120` suites + `16/16` checklist criteria, aligned with `73/73` C++ DSP tests in `BRAUN AS-42 v1.5.0`).
+* 🔬 [**VERIFICATION_CHECKLIST.md**](VERIFICATION_CHECKLIST.md) — Certified test harness report (`533/533` Web Audio, MIDI, UI & HTTP server tests across `120` suites + `16/16` checklist criteria, aligned with `73/73` C++ DSP tests in `BRAUN AS-42 v1.5.0`).
 
 ---
 

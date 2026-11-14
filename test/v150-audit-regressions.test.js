@@ -759,6 +759,77 @@ describe('v1.5.0 Deep Audit Regression Suite', () => {
       assert.strictEqual(engine._heldNotes.has(67), false, 'Unplugging port must clear held note from engine');
       assert.strictEqual(voice._isReleased, true, 'Unplugging port must release sounding voice');
     });
+
+    it('releases all overlapping voices for the same note on noteOff() and setSustainPedal(false) without stuck voices', async () => {
+      const savedAudioCtx = globalThis.AudioContext;
+      globalThis.AudioContext = function() { return createMockAudioContext(); };
+      cleanupEnv = () => {
+        if (savedAudioCtx === undefined) delete globalThis.AudioContext;
+        else globalThis.AudioContext = savedAudioCtx;
+      };
+
+      const engine = new AudioEngine();
+      await engine.init();
+
+      // Case A: Overlapping strikes on held note 60 followed by CC 64 latch + pedal release
+      const v0 = engine.noteOn(60, 0.75, 20.0, true);
+      const v1 = engine.noteOn(60, 0.85, 20.0, true);
+      assert.ok(v0 && v1 && v0 !== v1, 'Overlapping held noteOn(60) must allocate two distinct voices');
+      assert.strictEqual(v0._isReleased, false);
+      assert.strictEqual(v1._isReleased, false);
+
+      engine.setSustainPedal(true);
+      engine.noteOff(60);
+      assert.strictEqual(v0._isReleased, false, 'v0 must remain latched while CC 64 is down');
+      assert.strictEqual(v1._isReleased, false, 'v1 must remain latched while CC 64 is down');
+
+      engine.setSustainPedal(false);
+      assert.strictEqual(v0._isReleased, true, 'First overlapping voice v0 must release when sustain pedal lifts');
+      assert.strictEqual(v1._isReleased, true, 'Second overlapping voice v1 must release when sustain pedal lifts');
+
+      // Case B: Overlapping strikes on held note 64 with pedal UP released via noteOff(64)
+      const u0 = engine.noteOn(64, 0.70, 20.0, true);
+      const u1 = engine.noteOn(64, 0.80, 20.0, true);
+      assert.ok(u0 && u1 && u0 !== u1);
+      engine.noteOff(64);
+      assert.strictEqual(u0._isReleased, true, 'u0 must release on direct noteOff(64)');
+      assert.strictEqual(u1._isReleased, true, 'u1 must release on direct noteOff(64)');
+    });
+
+    it('explicitly releases orphaned pedal-latched voice on re-strike when concert tuning changes (440 <-> 432 Hz)', async () => {
+      const savedAudioCtx = globalThis.AudioContext;
+      globalThis.AudioContext = function() { return createMockAudioContext(); };
+      cleanupEnv = () => {
+        if (savedAudioCtx === undefined) delete globalThis.AudioContext;
+        else globalThis.AudioContext = savedAudioCtx;
+      };
+
+      const engine = new AudioEngine();
+      await engine.init();
+
+      // Strike A4 (69) at 440 Hz and latch with sustain pedal
+      engine.setSustainPedal(true);
+      const latched440Voice = engine.noteOn(69, 0.80, 20.0, true);
+      assert.ok(latched440Voice);
+      engine.noteOff(69);
+      assert.strictEqual(latched440Voice._isReleased, false);
+      assert.strictEqual(latched440Voice.isHold, true);
+
+      // Change reference pitch 440 -> 432 Hz while note 69 is pedal-latched, then re-strike note 69
+      engine.setTuningReference(432);
+      const restruck432Voice = engine.noteOn(69, 0.85, 20.0, true);
+      assert.ok(restruck432Voice && restruck432Voice !== latched440Voice, 'Retuned re-strike must allocate a 432 Hz voice');
+      assert.strictEqual(
+        latched440Voice._isReleased,
+        true,
+        'Prior 440 Hz pedal-latched voice must be explicitly released rather than orphaned at sustainLevel'
+      );
+      assert.strictEqual(restruck432Voice._isReleased, false, 'Newly struck 432 Hz voice must stay active while held');
+
+      engine.setSustainPedal(false);
+      engine.noteOff(69);
+      assert.strictEqual(restruck432Voice._isReleased, true);
+    });
   });
 
   describe('4. FeltPiano Bass Decay, Active updateDecay() & Hammer Buffer Disconnect', () => {

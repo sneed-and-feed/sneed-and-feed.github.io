@@ -957,16 +957,48 @@ export class AudioEngine {
     this._updateDroneGating();
   }
 
+  _releaseTrackedVoicesForNote(note) {
+    const hasTrackedEntry = Boolean(this._noteVoiceMap && this._noteVoiceMap.has(note));
+    const records = hasTrackedEntry ? this._noteVoiceMap.get(note) : null;
+    if (hasTrackedEntry) {
+      this._noteVoiceMap.delete(note);
+    }
+    if (hasTrackedEntry && Array.isArray(records)) {
+      let lastResult;
+      for (const rec of records) {
+        if (rec && rec.voice && typeof rec.voice.release === 'function') {
+          if (rec.voice.isActive && !rec.voice._isReleased && (rec.triggerId === undefined || rec.voice.triggerId === rec.triggerId)) {
+            lastResult = rec.voice.release();
+          }
+        }
+      }
+      return lastResult;
+    }
+    if (this.feltPiano && typeof this.feltPiano.release === 'function') {
+      const freq = midiToFrequency(note, this.a4 || 440);
+      return this.feltPiano.release(freq);
+    }
+    return undefined;
+  }
+
   noteOn(note, velocity = 0.65, duration = 3.5, isHold = false, isChord = false) {
+    let priorLatchedRecords = null;
     if (typeof note === 'number') {
       if (!this._heldNotes) this._heldNotes = new Set();
       if (!this._latchedNotes) this._latchedNotes = new Set();
       if (!this._noteVoiceMap) this._noteVoiceMap = new Map();
-      // If re-striking a note currently sustained only by the damper pedal, allow same-voice re-trigger
+      // If re-striking a note currently sustained only by the damper pedal:
+      // allow same-voice acoustic re-trigger when pitch matches, and release any non-reused latched voices
       if (this._latchedNotes.has(note)) {
-        const prevRec = this._noteVoiceMap.get(note);
-        if (prevRec && prevRec.voice && prevRec.voice.isActive && prevRec.voice.triggerId === prevRec.triggerId) {
-          prevRec.voice.isHold = false;
+        const prevRecords = this._noteVoiceMap.get(note);
+        if (Array.isArray(prevRecords) && prevRecords.length > 0) {
+          priorLatchedRecords = prevRecords.filter(
+            rec => rec && rec.voice && rec.voice.isActive && !rec.voice._isReleased &&
+              (rec.triggerId === undefined || rec.voice.triggerId === rec.triggerId)
+          );
+          for (const rec of priorLatchedRecords) {
+            rec.voice.isHold = false;
+          }
         }
         this._latchedNotes.delete(note);
       }
@@ -977,9 +1009,25 @@ export class AudioEngine {
     if (this.feltPiano && typeof note === 'number') {
       const freq = midiToFrequency(note, this.a4 || 440);
       const voice = this.feltPiano.playNote(freq, velocity, duration, isHold, isChord);
+      if (priorLatchedRecords) {
+        for (const rec of priorLatchedRecords) {
+          if (rec.voice !== voice && rec.voice.isActive && !rec.voice._isReleased &&
+              (rec.triggerId === undefined || rec.voice.triggerId === rec.triggerId) &&
+              typeof rec.voice.release === 'function') {
+            rec.voice.release();
+          }
+        }
+      }
       if (voice) {
         if (!this._noteVoiceMap) this._noteVoiceMap = new Map();
-        this._noteVoiceMap.set(note, { voice, triggerId: voice.triggerId });
+        const prevRecords = Array.isArray(this._noteVoiceMap.get(note)) ? this._noteVoiceMap.get(note) : [];
+        const liveRecords = prevRecords.filter(
+          rec => rec && rec.voice && rec.voice !== voice &&
+            rec.voice.isActive && !rec.voice._isReleased &&
+            (rec.triggerId === undefined || rec.voice.triggerId === rec.triggerId)
+        );
+        liveRecords.push({ voice, triggerId: voice.triggerId });
+        this._noteVoiceMap.set(note, liveRecords);
       }
       return voice;
     }
@@ -999,16 +1047,7 @@ export class AudioEngine {
     }
     this._updateDroneGating();
     if (this.feltPiano && typeof note === 'number') {
-      const rec = this._noteVoiceMap ? this._noteVoiceMap.get(note) : null;
-      if (this._noteVoiceMap) this._noteVoiceMap.delete(note);
-      if (rec && rec.voice && typeof rec.voice.release === 'function') {
-        if (rec.voice.isActive && (rec.triggerId === undefined || rec.voice.triggerId === rec.triggerId)) {
-          return rec.voice.release();
-        }
-        return;
-      }
-      const freq = midiToFrequency(note, this.a4 || 440);
-      return this.feltPiano.release(freq);
+      return this._releaseTrackedVoicesForNote(note);
     }
   }
 
@@ -1023,16 +1062,7 @@ export class AudioEngine {
         if (this._heldNotes && this._heldNotes.has(note)) {
           continue;
         }
-        const rec = this._noteVoiceMap ? this._noteVoiceMap.get(note) : null;
-        if (this._noteVoiceMap) this._noteVoiceMap.delete(note);
-        if (rec && rec.voice && typeof rec.voice.release === 'function') {
-          if (rec.voice.isActive && (rec.triggerId === undefined || rec.voice.triggerId === rec.triggerId)) {
-            rec.voice.release();
-          }
-        } else if (this.feltPiano && typeof this.feltPiano.release === 'function') {
-          const freq = midiToFrequency(note, this.a4 || 440);
-          this.feltPiano.release(freq);
-        }
+        this._releaseTrackedVoicesForNote(note);
       }
     } else if (!down && this._latchedNotes) {
       this._latchedNotes.clear();

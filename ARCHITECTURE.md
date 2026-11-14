@@ -53,7 +53,7 @@ The BRAUN AS 42 ambient generative synthesizer integrates physical modeling felt
 
 ### Oversampling Architecture
 * **Web Audio Implementation (4x Polyphase Oversampling):** In client-side Web Audio (`js/audio/wavefolder.js`), wavefolding and nonlinear soft-knee saturation utilize a 4x oversampled polyphase FIR half-band filter bank to eliminate Nyquist foldover distortion within the browser's dynamic audio graph.
-* **Native C++ Engine (1x Native Sample Rate):** In the native C++20 engine (`plugin/source/dsp/`), the wavefolder is mathematically optimized using trigonometric multiple-angle identities ($\sin(3\theta) = \sin\theta(3 - 4\sin^2\theta)$), providing bit-exact $C^1$ smoothness and natural band-limiting running at native sample rate (44.1 kHz – 192 kHz) without oversampling latency or phase ringing.
+* **Native C++ Engine (1x Native Sample Rate):** In the native C++20 engine (`plugin/source/dsp/`), the wavefolder is mathematically optimized using the trigonometric triple-angle identity $\sin(3\theta) = \sin\theta(3 - 4\sin^2\theta)$, providing bit-exact $C^1$ smoothness and natural band-limiting running at native sample rate (44.1 kHz – 192 kHz) without oversampling latency or phase ringing.
 
 ---
 
@@ -73,12 +73,12 @@ The piano engine emulates the warm, intimate acoustic character of a prepared un
 * **Golden-Ratio Micro-Detuning:** Individual unison voices apply golden-ratio micro-detuning dispersion ($\pm 1.4\text{ cents}$) across voice pairs. This eliminates artificial comb filtering and clone phasing, allowing polyphonic chord voicings to coalesce naturally.
 * **Continuous Release Scaling:** Voice release duration dynamically scales with register (including a $1.35\times$ bass extension for MIDI notes $< 48$) and the `felt_decay` parameter:
 
-$$
+```math
 t_{\text{rel}} = 0.10\text{s} + 0.32\text{s} \times (\text{relScale})^{1.35}
-$$
+```
 
   yielding smooth decay times from 0.14 s (tight staccato) up to 1.84 s (singing ambient sustain), with real-time `updateDecay` envelope rescheduling for both held/ringing and released voices.
-* **Generation-Guarded Sustain Latching (`CC 64`):** Each voice strike increments a monotonic `triggerId` generation token. Sustain pedal (`CC 64`) release and deferred `NoteOff` handlers compare `triggerId` before releasing a voice, guaranteeing stolen voices are never prematurely cut off.
+* **Generation-Guarded Multi-Voice Sustain Latching (`CC 64`):** Each voice strike increments a monotonic `triggerId` generation token and registers into a per-note active voice list (`_noteVoiceMap`). Sustain pedal (`CC 64`) release, `noteOff`, and pedal-latched re-strikes (including across concert pitch `440 <-> 432 Hz` retuning) release all non-stolen voices for that note without ever prematurely cutting off stolen voices or orphaning prior latched notes.
 
 ### 2.3 Soundboard Modal Matrix
 * **Physical Modal Circulation:** A 512-sample circular soundboard feedback loop (~10.6 ms) models the physical acoustic body of an upright piano casing.
@@ -104,19 +104,19 @@ The drone subsystem provides a rich, organic microtonal foundation:
 ### 3.2 West-Coast Wavefolder
 * Non-linear folding transfer function:
 
-$$
+```math
 y = \tanh\left(\sin(0.5\pi D x) - F \sin(1.5\pi D x)\right)
-$$
+```
 
   where $D$ is drive and $F$ is folding depth.
 * **Triple-Angle Optimization:** Replaces expensive transcendental calls with:
 
-$$
+```math
 \sin(3\theta) = \sin\theta(3 - 4\sin^2\theta)
-$$
+```
 
   yielding a 34.3% CPU reduction with bit-exact $C^1$ smoothness.
-* **Monotonic** $C^1$ **Hermite Boundary Limiter:** Freeze, shimmer, and master limiters clamp $|y| \ge 1 \implies \operatorname{sgn}(y)$ outside the soft knee, guaranteeing strict $[-1, 1]$ monotonicity without cubic foldback on hot transients, alongside `Number.isFinite` and `drive <= 1e-4` guards.
+* **Monotonic** $C^1$ **Hermite Boundary Limiter:** Freeze, shimmer, and master limiters clamp $|y| \ge 1 \implies \mathrm{sgn}(y)$ outside the soft knee, guaranteeing strict $[-1, 1]$ monotonicity without cubic foldback on hot transients, alongside `Number.isFinite` and `drive <= 1e-4` guards.
 
 ### 3.3 Dynamic MIDI Pitch Tracking & Anti-Pop Gating
 * **Drone 1 (Tonic):** Automatically tracks the root note of held piano keys transposed into the deep sub-bass register ($32.7\text{ Hz} - 130.8\text{ Hz}$) with smooth 40 ms portamento frequency slewing.

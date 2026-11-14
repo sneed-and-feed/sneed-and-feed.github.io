@@ -23,7 +23,7 @@
 
 #### 2. 🎛️ Web Audio DSP Numerical Hardening & Anti-Click Scheduling
 * **Monotonic** $C^1$ **Hermite Boundary Limiter (`js/audio/wavefolder.js`)**:
-  * Fixed `applySmoothBoundaryKnee(y, knee)` to clamp $|y| \ge 1.0 \implies \operatorname{sgn}(y)$, eliminating cubic Hermite foldback/divergence above $\pm 1.0$ in `makeFreezeLimiterCurve` and `makeShimmerLimiterCurve`.
+  * Fixed `applySmoothBoundaryKnee(y, knee)` to clamp $|y| \ge 1.0 \implies \mathrm{sgn}(y)$, eliminating cubic Hermite foldback/divergence above $\pm 1.0$ in `makeFreezeLimiterCurve` and `makeShimmerLimiterCurve`.
   * Added `Number.isFinite` and low-drive (`drive <= 1e-4`) guards across all 6 waveshaper and limiter transfer curve generators.
 * **Strict Nyquist Clamping & Anchored Gecko/Firefox Ramps (`tape-delay.js`, `shimmer-reverb.js`, `drone-voice.js`, `felt-piano.js`)**:
   * Bounded all dynamic `BiquadFilterNode` cutoffs (including positive LFO excursions in `SolarDroneVoice`) strictly below $\le 0.49 f_s$ (`Math.max(800, sampleRate * 0.49)`).
@@ -34,9 +34,9 @@
 * **Felt Piano Active `updateDecay()` & Hammer Graph Leak Elimination (`felt-piano.js`)**:
   * Extended `updateDecay(newDecay)` to reschedule both `_isReleased` and active non-held ringing voices with the $1.35\times$ bass register multiplier (`midi < 48`), and disconnected one-shot hammer `AudioBufferSourceNode` nodes in `onended`.
 
-#### 3. 🎹 Sustain Pedal (`CC 64`), Stolen-Voice `triggerId` & Web MIDI Hot-Unplug Safety
+#### 3. 🎹 Sustain Pedal (`CC 64`), Multi-Voice `_noteVoiceMap`, Stolen-Voice `triggerId` & Web MIDI Hot-Unplug Safety
 * **Real-Engine Sustain Latching (`engine.js`, `felt-piano.js`, `midi-manager.js`)**:
-  * Wired `AudioEngine.noteOff()` and `AudioEngine.setSustainPedal()` with monotonic `triggerId` voice-generation tokens so `CC 64` genuinely sustains `FeltPianoVoice` notes on the real engine while guaranteeing stolen voices are never prematurely cut off on pedal lift.
+  * Wired `AudioEngine.noteOff()` and `AudioEngine.setSustainPedal()` with per-note multi-voice tracking (`_noteVoiceMap`) and monotonic `triggerId` voice-generation tokens so `CC 64` genuinely sustains `FeltPianoVoice` notes on the real engine (including overlapping strikes on held notes and retuned `440 <-> 432 Hz` pedal-latched re-strikes) while guaranteeing stolen voices are never prematurely cut off and prior latched voices are never orphaned.
 * **Cold-Wake First-Note Preservation & USB Hot-Unplug Cleanup**:
   * Buffered first-strike MIDI notes during asynchronous cold `startAudio()` wake (`_pendingWakeNotes`, cancelling cleanly if `NoteOff` arrives before wake completes) and automatically released port-held notes and sustain latches if a USB MIDI controller disconnects mid-performance.
   * Updated `keyboard.js` `window` `blur` handling to invoke `engine.noteOff(midi)` for held keyboard and touch keys so `_heldNotes` and MIDI-tracked drones release cleanly on `Alt+Tab`.
@@ -59,8 +59,8 @@
 
 | Test Harness / Suite | Assertions | Result | Status |
 | :--- | :--- | :--- | :--- |
-| **Node.js Web Audio, MIDI, UI & Server Suite (`npm test`)** | 531 tests (120 suites) | 531 Passed, 0 Failed | **PASS** |
-| **v1.5.0 Deep Audit Regression Suite (`test/v150-audit-regressions.test.js`)** | 17 tests (8 suites) | 17 Passed, 0 Failed | **PASS** |
+| **Node.js Web Audio, MIDI, UI & Server Suite (`npm test`)** | 533 tests (120 suites) | 533 Passed, 0 Failed | **PASS** |
+| **v1.5.0 Deep Audit Regression Suite (`test/v150-audit-regressions.test.js`)** | 19 tests (9 suites) | 19 Passed, 0 Failed | **PASS** |
 | **Standalone Fast Verification Checklist (`npm run verify:checklist`)** | 16 criteria | 16 Passed, 0 Errors | **PASS** |
 | **Sibling Native C++20 DSP & Lifecycle Suites (`braun_as-42 v1.5.0`)** | 73 tests (4 suites) | 73 Passed, 0 Failed | **PASS** |
 

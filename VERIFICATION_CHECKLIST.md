@@ -1,7 +1,7 @@
 # BRAUN AS 42 · Reproducible Verification Checklist & DSP Benchmark Report
 
-[![Verification Status](https://img.shields.io/badge/Verification-100%25%20PASS%20(531%2F531%20Web%20%7C%2016%2F16%20Checklist)-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white)](#verification-summary)
-[![Tests Passing](https://img.shields.io/badge/Tests-531%2F531%20PASS-success?style=for-the-badge&logo=node.js&logoColor=white)](#1-test-suite-coverage--verification-matrix)
+[![Verification Status](https://img.shields.io/badge/Verification-100%25%20PASS%20(533%2F533%20Web%20%7C%2016%2F16%20Checklist)-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white)](#verification-summary)
+[![Tests Passing](https://img.shields.io/badge/Tests-533%2F533%20PASS-success?style=for-the-badge&logo=node.js&logoColor=white)](#1-test-suite-coverage--verification-matrix)
 [![Sample Rates](https://img.shields.io/badge/Sample%20Rates-22.05k%20--%20384k%20Hz-blue?style=for-the-badge)](#2-audio-engineering--dsp-specifications)
 [![Latency](https://img.shields.io/badge/Algorithmic%20Latency-0%20Samples-orange?style=for-the-badge)](#latency-profile)
 [![License](https://img.shields.io/badge/License-MIT-4A4A4A?style=for-the-badge)](LICENSE)
@@ -17,7 +17,7 @@
 
 | Metric | Certified Result | Target Threshold | Status |
 | :--- | :--- | :--- | :--- |
-| **Node.js Automated Test Harness (`npm test`)** | **531 / 531 Passed** (120 suites) | 100% Pass, 0 Failures | **PASS** |
+| **Node.js Automated Test Harness (`npm test`)** | **533 / 533 Passed** (120 suites) | 100% Pass, 0 Failures | **PASS** |
 | **Fast Verification Checklist (`verify:checklist`)** | **16 / 16 Passed** | 0 Errors | **PASS** |
 | **Sibling Native C++ DSP & Lifecycle Suites (`braun_as-42`)** | **73 / 73 Passed** (4 suites) | 100% Pass, 0 Failures | **PASS** |
 | **Real-Time Memory & Graph Safety** | **0 leaks, self-disconnecting hammer nodes, 0 heap allocs in `processBlock()`** | 0 leaked nodes / bytes | **PASS** |
@@ -37,7 +37,7 @@ To reproduce all verification tests and DSP benchmarks on any local installation
 # 1. Run the standalone verification checklist harness (< 250ms execution time)
 npm run verify:checklist
 
-# 2. Run the complete Node.js Web Audio, MIDI, UI & HTTP server automated test suite (531 tests)
+# 2. Run the complete Node.js Web Audio, MIDI, UI & HTTP server automated test suite (533 tests)
 npm test
 
 # 3. Run combined checklist and full Node.js regression suite
@@ -48,12 +48,12 @@ npm run verify:all
 
 ## 1. Test Suite Coverage & Verification Matrix
 
-The AS-42 Web Audio verification framework spans **547 client-side automated assertions** (`531` Node.js unit/stress/regression tests + `16` checklist criteria), synchronized with `73` native C++20 DSP tests in [`braun_as-42` `v1.5.0`](https://github.com/sneed-and-feed/braun_as-42):
+The AS-42 Web Audio verification framework spans **549 client-side automated assertions** (`533` Node.js unit/stress/regression tests + `16` checklist criteria), synchronized with `73` native C++20 DSP tests in [`braun_as-42` `v1.5.0`](https://github.com/sneed-and-feed/braun_as-42):
 
 ### 1.1 Node.js Automated Test Suite (`npm test`)
-* **Total Tests:** 531 passed, 0 failed, 0 skipped, 0 canceled across 120 test suites.
+* **Total Tests:** 533 passed, 0 failed, 0 skipped, 0 canceled across 120 test suites.
 * **Coverage Scope:**
-  * **v1.5.0 Deep Audit Regressions (`v150-audit-regressions.test.js`):** Cold-boot/soft-reload/BFCache (`pageshow` `persisted === true`) drone & freeze disarming, rapid pre-boot double-click toggle synchronization, monotonic $C^1$ Hermite boundary clamping ($|y| \ge 1$), real `AudioEngine` sustain pedal (`CC 64`) + `triggerId` stolen-voice protection, cold-wake MIDI note preservation, USB MIDI hot-unplug cleanup, bass-register active `updateDecay()`, Sub-Bass `1.70x` power-cycle gain retention, Firefox `cancelScheduledValues` anchoring, $0.49 f_s$ Nyquist clamping, and `server.js` HTTP/path-traversal hardening.
+  * **v1.5.0 Deep Audit Regressions (`v150-audit-regressions.test.js`):** Cold-boot/soft-reload/BFCache (`pageshow` `persisted === true`) drone & freeze disarming, rapid pre-boot double-click toggle synchronization, monotonic $C^1$ Hermite boundary clamping ($|y| \ge 1$), real `AudioEngine` multi-voice sustain pedal (`CC 64`) + `triggerId` stolen-voice protection & retuned (`440 <-> 432 Hz`) latched re-strike cleanup, cold-wake MIDI note preservation, USB MIDI hot-unplug cleanup, bass-register active `updateDecay()`, Sub-Bass `1.70x` power-cycle gain retention, Firefox `cancelScheduledValues` anchoring, $0.49 f_s$ Nyquist clamping, and `server.js` HTTP/path-traversal hardening.
   * **Canvas Lifecycle & Startup Drone Guards (`webview-lifecycle-and-occlusion.test.js`, `standalone-startup-drone-guard.test.js`, `standalone-recorder-ipc.test.js`):** CRT oscilloscope standby/visibility/blur halting, storage latch purging, and lossless WAV recorder IPC parity.
   * Voice de-duplication, lifecycle management, and note-off tracking (`web-audio-audit-regressions.test.js`, `audio-enhancements.test.js`).
   * Web MIDI API parsing, running status decoding, 14-bit pitch bend linearity, and chaotic sustain pedal (`CC 64`) latching (`web-midi.test.js`, `web-midi-stress.test.js`).
@@ -106,9 +106,9 @@ The AS-42 Web Audio verification framework spans **547 client-side automated ass
 * **Exponential Damping Envelopes:**
   * Felt piano decay envelopes utilize register-dependent exponential decay curves:
 
-$$
+```math
 t_{\text{rel}} = 0.10\text{s} + 0.32\text{s} \times (\text{relScale})^{1.35}
-$$
+```
 
   * Spanning 0.14s (tight staccato) to 1.84s (long singing sustain tail) with click-free voice lifecycle tracking.
 * **Butterworth Biquad Damping** ($Q = 0.7071$):
@@ -136,19 +136,19 @@ The AS-42 employs a three-tier anti-clipping architecture to ensure clean, warm 
 2. **Normalized Tape Feedback Loop Gain** ($\le 0.92$):
    * The small-signal slope of the tape saturation transfer curve ($k \approx 1.5173$ at $x = 0$) is normalized:
 
-$$
+```math
 \text{directFb} = \frac{\text{feedback} \times 0.70}{\text{shaperGain}}, \quad \text{crossFb} = \frac{\text{feedback} \times 0.30}{\text{shaperGain}}
-$$
+```
 
    * Circulating loop gain strictly equals the user's feedback setting ($\le 0.92$), preventing runaway resonant buildup and flat-top waveshaper rail-clipping.
 3. **4x Polyphase Oversampled Wavefolder & Limiter (`makeLimiterCurve`):**
    * Multi-stage West-Coast wavefolding transfer curve:
 
-$$
+```math
 y = \tanh\left(\sin(0.5\pi D x) - F \sin(1.5\pi D x)\right)
-$$
+```
 
-   * 4x oversampling eliminates Nyquist aliasing foldover, while `applySmoothBoundaryKnee` strictly clamps $|y| \ge 1 \implies \operatorname{sgn}(y)$ outside the soft knee.
+   * 4x oversampling eliminates Nyquist aliasing foldover, while `applySmoothBoundaryKnee` strictly clamps $|y| \ge 1 \implies \mathrm{sgn}(y)$ outside the soft knee.
    * Master soft limiter (`makeLimiterCurve(2048, 0.75)`) maintains unity gain ($0\text{ dB}$, slope $= 1.0$) for linear signals $|x| \le \text{knee}$, and curves smoothly to $\pm 1.0$ with zero derivative at boundary endpoints.
 
 ---
@@ -209,4 +209,4 @@ $$
 
 * **Lead Verification Engineer:** Antigravity Audio Engineering Team
 * **Target Release:** BRAUN AS-42 v1.5.0 / sneed-and-feed.github.io
-* **Verification Outcome:** **100% PASS** — All 531 Node.js tests and 16 verification checklist criteria met with zero defects.
+* **Verification Outcome:** **100% PASS** — All 533 Node.js tests and 16 verification checklist criteria met with zero defects.
