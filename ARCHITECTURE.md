@@ -179,7 +179,7 @@ The synthesizer exposes 38 parameters synchronized between C++ APVTS and Web UI:
 | 5 | `felt_space` | `feltSymp` | 0.0 – 1.0 | 0.30 | Linear | Sympathetic string resonance amount |
 | 6 | `felt_waveform` | `feltWaveform` | 0 – 4 | 0 (Felt) | Enum | Core timbre: Felt, Sine, Saw, Sqr, CS80 |
 | 7 | `drone1_volume` | `drone1Vol` | 0.0 – 1.0 | 0.45 | Linear | Drone Voice 1 volume |
-| 8 | `drone1_pitch` | `drone1Pitch` | 20.0 – 400.0 | 65.41 | Hz | Drone Voice 1 base frequency |
+| 8 | `drone1_pitch` | `drone1Pitch` | 20.0 – 1000.0 | 65.41 | Hz | Drone Voice 1 base frequency |
 | 9 | `drone1_fold` | `drone1Fold` | 0.0 – 1.0 | 0.25 | Linear | Drone 1 wavefolder drive & fold depth |
 | 10 | `drone1_cutoff` | `drone1Cutoff` | 50.0 – 12000.0 | 850.0 | Hz | Drone 1 ladder lowpass cutoff |
 | 11 | `drone1_resonance` | `drone1Res` | 0.5 – 4.0 | 1.20 | Linear | Drone 1 filter resonance |
@@ -190,7 +190,7 @@ The synthesizer exposes 38 parameters synchronized between C++ APVTS and Web UI:
 | 16 | `drone1_waveB` | `drone1WaveB` | 0 – 4 | 5 (Tri) | Enum | Drone 1 Oscillator B waveform |
 | 17 | `drone1_isSubBass` | `drone1SubBass` | 0 / 1 | 0 (Off) | Bool | Drone 1 sub-bass mode toggle |
 | 18 | `drone2_volume` | `drone2Vol` | 0.0 – 1.0 | 0.40 | Linear | Drone Voice 2 volume |
-| 19 | `drone2_pitch` | `drone2Pitch` | 20.0 – 600.0 | 98.12 | Hz | Drone Voice 2 base frequency |
+| 19 | `drone2_pitch` | `drone2Pitch` | 20.0 – 1000.0 | 98.00 | Hz | Drone Voice 2 base frequency |
 | 20 | `drone2_fold` | `drone2Fold` | 0.0 – 1.0 | 0.20 | Linear | Drone 2 wavefolder drive & fold depth |
 | 21 | `drone2_cutoff` | `drone2Cutoff` | 50.0 – 12000.0 | 1100.0 | Hz | Drone 2 ladder lowpass cutoff |
 | 22 | `drone2_resonance` | `drone2Res` | 0.5 – 4.0 | 1.10 | Linear | Drone 2 filter resonance |

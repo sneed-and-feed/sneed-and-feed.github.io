@@ -124,6 +124,11 @@ export class AudioEngine {
    * Power down synthesizer with clickless bus ramping before AudioContext suspend
    */
   async powerOff() {
+    if (this._initPromise) {
+      try {
+        await this._initPromise;
+      } catch (e) {}
+    }
     if (!this.ctx || this.ctx.state === 'suspended') return;
     if (this._powerOffPromise) return this._powerOffPromise;
 
@@ -179,7 +184,7 @@ export class AudioEngine {
         await new Promise(r => setTimeout(r, 80));
 
         // If hardware audio clock lagged real-time timer jitter, allow remaining ramp milliseconds to finish
-        if (this.ctx && typeof this.ctx.currentTime === 'number' && this.ctx.state === 'running' && this.ctx.currentTime < now + rampDuration) {
+        if (this.ctx && typeof this.ctx.currentTime === 'number' && this.ctx.state === 'running' && this.ctx.currentTime > now && this.ctx.currentTime < now + rampDuration) {
           const remainingMs = Math.min(80, Math.ceil((now + rampDuration - this.ctx.currentTime) * 1000) + 12);
           if (remainingMs > 0) {
             await new Promise(r => setTimeout(r, remainingMs));
@@ -792,9 +797,12 @@ export class AudioEngine {
     const newFreq = midiToFrequency(midi, this.a4);
     const oldFreq = this.drone1Freq;
     this.drone1Freq = newFreq;
+    const isSub = (snapKey === 'sub-bass');
+    if (this.droneParams && this.droneParams[1]) {
+      this.droneParams[1].isSubBass = isSub;
+    }
 
     if (this.drone1) {
-      const isSub = (snapKey === 'sub-bass');
       const targetGain = this.drone1.volume * (isSub ? 1.70 : 1.0);
       if (this.isInitialized && this.drone1.isActive && Math.abs(newFreq - (oldFreq || newFreq)) >= 1.0) {
         if (typeof this.drone1.declickTransition === 'function') {

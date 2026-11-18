@@ -21,10 +21,10 @@
 
 #### 2. 🔇 Click-Free Power-Off With Active Drones & Async Startup Cancellation
 * **Clean Power-Off Teardown & Drone Gain Anchoring (`js/app.js`, `js/audio/engine.js`, `js/ui/keyboard.js`)**:
-  * Cancelled all in-flight chord-strum timers (`cancelAllActive()`), disarmed `#toggle-freeze` + `shimmer_freeze`, anchored live `SolarDroneVoice._getInstantGain(now)` during fallback bus fade-outs, and guarded `AudioEngine.powerOff()` until `ctx.currentTime` completes the 50 ms ramp before suspending `AudioContext`.
-  * Added monotonic `_powerEpoch` cancellation in `startAudio()` / `togglePower()` so cancelling an in-flight `startAudio()` never wedges `_startingAudioPromise` or flips `isPowerOn` back to `true`.
+  * Cancelled all in-flight chord-strum timers (`cancelAllActive()`), released held keyboard/touch notes via `engine.noteOff(midi)`, guarded `window.blur` so clicking outside WebView2 never kills DAW MIDI notes when no UI keys are held, disarmed `#toggle-freeze` + `shimmer_freeze`, anchored live `SolarDroneVoice._getInstantGain(now)` during fallback bus fade-outs, awaited pending `_initPromise` inside `AudioEngine.powerOff()`, and guarded `AudioEngine.powerOff()` until `ctx.currentTime` completes the 50 ms ramp before suspending `AudioContext`.
+  * Added monotonic `_powerEpoch` cancellation in `startAudio()`, `togglePower()`, and generative note-off timers so cancelling an in-flight `startAudio()` or cycling power never wedges `_startingAudioPromise`, flips `isPowerOn` back to `true`, or sends stale note-offs.
 * **Native Desktop / VST3 / AU Parity (`BRAUN AS-42 v1.5.1`)**:
-  * Paired with `withKeepPageLoadedWhenBrowserIsHidden()`, removal of steady-state `drone1Active` / `drone2Active` power re-waking in `processBlock()`, a 45 ms $C^1$ Hermite power-off ramp, lock-free `dspSilent` / `pendingSilentPowerSnap` handoff, and a 50 ms VST3/AU tail guard.
+  * Paired with `withKeepPageLoadedWhenBrowserIsHidden()`, VST3 `updateHostDisplay` program sync & child-HWND visibility detection, removal of steady-state `drone1Active` / `drone2Active` power re-waking in `processBlock()`, a 45 ms $C^1$ Hermite power-off ramp, lock-free atomics, and a 50 ms VST3/AU tail guard.
 
 #### 3. 🔗 Sibling Instrument Suite Showcase & Distribution Packages
 * Updated footer and documentation links across `index.html` and `README.md` (`BRAUN AS-42 v1.5.1`, `BRAUN RB-26 v1.5.0`, `BRAUN MR-16 v1.1.0`, `Bumbler XD v1.1.0`) with attached Windows x64 VST3 + Standalone archives (`BRAUN_AS42-v1.5.1-Windows-x64.zip`, `BRAUN_AS42-v1.5.1-VST3-Windows-x64.zip`, `SHA256SUMS.txt`).
@@ -35,9 +35,9 @@
 
 | Test Harness / Suite | Assertions | Result | Status |
 | :--- | :--- | :--- | :--- |
-| **Node.js Web Audio, MIDI, UI & Server Suite (`npm test`)** | 535 tests (120 suites) | 535 Passed, 0 Failed | **PASS** |
+| **Node.js Web Audio, MIDI, UI & Server Suite (`npm test`)** | 536 tests (120 suites) | 536 Passed, 0 Failed | **PASS** |
 | **Standalone Fast Verification Checklist (`npm run verify:checklist`)** | 16 criteria | 16 Passed, 0 Errors | **PASS** |
-| **Sibling Native C++20 DSP & Lifecycle Suites (`braun_as-42 v1.5.1`)** | 78 tests (4 suites) | 78 Passed, 0 Failed | **PASS** |
+| **Sibling Native C++20 DSP & Lifecycle Suites (`braun_as-42 v1.5.1`)** | 79 tests (4 suites) | 79 Passed, 0 Failed | **PASS** |
 
 ---
 
