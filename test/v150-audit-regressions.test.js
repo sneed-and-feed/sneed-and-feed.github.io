@@ -996,15 +996,15 @@ describe('v1.5.0 Deep Audit Regression Suite', () => {
   });
 
   describe('8. HTML Soft-Reload Defense, Manifest & Sibling Suite Link Alignment', () => {
-    it('enforces autocomplete="off" on all HTML <select> controls, v1.5.0 asset/manifest versions, and sibling suite links', () => {
+    it('enforces autocomplete="off" on all HTML <select> controls, v1.5.1 asset/manifest versions, and sibling suite links', () => {
       const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
       const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf-8'));
       const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifest.json'), 'utf-8'));
       const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf-8');
 
-      assert.strictEqual(pkg.version, '1.5.0', 'package.json version must be 1.5.0');
-      assert.strictEqual(manifest.version, '1.5.0', 'manifest.json version must be 1.5.0');
-      assert.ok(html.includes('js/app.js?v=1.5.0'), 'index.html must cache-bust js/app.js?v=1.5.0');
+      assert.strictEqual(pkg.version, '1.5.1', 'package.json version must be 1.5.1');
+      assert.strictEqual(manifest.version, '1.5.1', 'manifest.json version must be 1.5.1');
+      assert.ok(html.includes('js/app.js?v=1.5.1'), 'index.html must cache-bust js/app.js?v=1.5.1');
 
       const selectTags = html.match(/<select\b[^>]*>/gi) || [];
       assert.ok(selectTags.length >= 5, 'index.html must contain all 5 <select> controls');

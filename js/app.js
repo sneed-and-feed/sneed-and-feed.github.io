@@ -523,6 +523,7 @@ export class AmbientApp {
       document.body.setAttribute('data-theme', themeSelect.value);
       themeSelect.addEventListener('change', (e) => {
         document.body.setAttribute('data-theme', e.target.value);
+        this._emitJuceParamChange('uiTheme', e.target.value);
         if (typeof themeSelect.blur === 'function') themeSelect.blur();
         if (typeof document !== 'undefined' && document.body && typeof document.body.focus === 'function') {
           document.body.focus();
@@ -560,6 +561,7 @@ export class AmbientApp {
         this.engine.setScale(this.engine.currentScaleKey, root);
         if (this.playSurface) this.playSurface.rebuildKeys();
         this.updateLoopNotes();
+        this._emitJuceParamChange('rootPitchClass', root);
         if (this.engine) {
           this._emitJuceParamChange('drone1_pitch', this.engine.drone1Freq);
           this._emitJuceParamChange('drone2_pitch', this.engine.drone2Freq);
@@ -601,6 +603,7 @@ export class AmbientApp {
         this.engine.setScale(scaleKey, this.engine.rootPitchClass);
         if (this.playSurface) this.playSurface.rebuildKeys();
         this.updateLoopNotes();
+        this._emitJuceParamChange('scaleKey', scaleKey);
         if (typeof scaleSelect.blur === 'function') scaleSelect.blur();
         if (typeof document !== 'undefined' && document.body && typeof document.body.focus === 'function') {
           document.body.focus();
@@ -718,6 +721,7 @@ export class AmbientApp {
       tuningSelect.addEventListener('change', (e) => {
         const a4 = parseFloat(e.target.value);
         this.engine.setTuningReference(a4);
+        this._emitJuceParamChange('tuningA4', a4);
         this._emitJuceParamChange('drone1_pitch', this.engine.drone1Freq);
         this._emitJuceParamChange('drone2_pitch', this.engine.drone2Freq);
         if (this.playSurface) this.playSurface.rebuildKeys();
@@ -736,8 +740,12 @@ export class AmbientApp {
       tab.addEventListener('click', () => {
         modeTabs.forEach(t => t.classList.remove('is-active'));
         tab.classList.add('is-active');
+        const nextMode = tab.getAttribute('data-mode');
         if (this.scope) {
-          this.scope.setMode(tab.getAttribute('data-mode'));
+          this.scope.setMode(nextMode);
+        }
+        if (nextMode) {
+          this._emitJuceParamChange('scopeMode', nextMode);
         }
       });
     });
@@ -874,6 +882,9 @@ export class AmbientApp {
           await this.startAudio();
         }
       };
+      this.playSurface.onChordSpeedChange = (speed) => {
+        this._emitJuceParamChange('chordSpeed', speed);
+      };
     }
 
     // Render Braun AS 42 Precision Vector Touchpad
@@ -888,6 +899,12 @@ export class AmbientApp {
         },
         onChange: (data) => {
           this._syncKnobsFromVectorPad(data);
+        },
+        onModeChange: (mode) => {
+          this._emitJuceParamChange('vectorMode', mode);
+          if (this.vectorPad) {
+            this._emitJuceVectorState(this.vectorPad.x, this.vectorPad.y, mode);
+          }
         }
       });
     }
@@ -950,8 +967,8 @@ export class AmbientApp {
     // Strictly disarm drones, freeze, and power on cold load / page reload so audio never starts unexpectedly
     this._disarmAllAudioAndSyncStandbyUI();
 
-    // Calibrate all parameters, knobs, and vector pad to pristine default preset on boot
-    this.applyPreset('DEFAULT', { animate: false });
+    // Calibrate local UI knobs & vector pad to default on boot WITHOUT overwriting C++ APVTS state!
+    this.applyPreset('DEFAULT', { animate: false, emitToNative: false });
 
     // Initialize JUCE 8 two-way parameter synchronization bridge
     this._initJuceBridge();
@@ -1017,8 +1034,12 @@ export class AmbientApp {
     // (pageshow with event.persisted === true) strictly disarm drones & return to standby!
     const handleInterruptionRecovery = async (event) => {
       if (event && event.type === 'pageshow' && event.persisted) {
+        if (this.isJuce) {
+          this._emitJuceParamChange('requestSync', 1.0);
+          return;
+        }
         this._disarmAllAudioAndSyncStandbyUI();
-        if (!this.isJuce && this.engine && this.engine.ctx) {
+        if (this.engine && this.engine.ctx) {
           try {
             if (typeof this.engine.powerOff === 'function') {
               await this.engine.powerOff();
@@ -1108,10 +1129,10 @@ export class AmbientApp {
    * @param {boolean} [options.animate=true]
    * @param {number} [options.duration=300]
    */
-  applyPreset(presetKey, { animate = true, duration = 300 } = {}) {
+  applyPreset(presetKey, { animate = true, duration = 300, emitToNative = true } = {}) {
     if (presetKey === 'CUSTOM') {
       if (this._loadedPatch) {
-        return this.loadPatch(this._loadedPatch, { animate, duration });
+        return this.loadPatch(this._loadedPatch, { animate, duration, emitToNative });
       }
       presetKey = 'DEFAULT';
     }
@@ -1123,12 +1144,23 @@ export class AmbientApp {
       this._presetTimer = null;
     }
 
+    const emitJuce = (id, val) => {
+      if (emitToNative) {
+        this._emitJuceParamChange(id, val);
+      }
+    };
+
     // 1. Update preset selector dropdown if out of sync
     const presetSelect = (typeof document !== 'undefined' && typeof document.getElementById === 'function')
       ? document.getElementById('select-preset')
       : null;
     if (presetSelect && presetSelect.value !== preset.id) {
       presetSelect.value = preset.id;
+    }
+
+    const presetProgramMap = { DEFAULT: 0, HAROLD_BUDD: 1, VANGELIS: 2, ENO_AIRPORTS: 3 };
+    if (this.isJuce && Object.prototype.hasOwnProperty.call(presetProgramMap, preset.id)) {
+      emitJuce('currentProgram', presetProgramMap[preset.id]);
     }
 
     // 2. Animate all rotary knobs to preset values (or snap immediately if not animating or in test environment)
@@ -1143,7 +1175,7 @@ export class AmbientApp {
             knob.setValue(targetVal, false);
           }
         }
-        this._emitJuceParamChange(k, targetVal);
+        emitJuce(k, targetVal);
       });
 
       // Update engine immediately
@@ -1189,7 +1221,7 @@ export class AmbientApp {
         btn.classList.toggle('is-active', match);
       });
       this.engine.setFeltWaveform(preset.pianoWave);
-      this._emitJuceParamChange('felt_waveform', preset.pianoWave);
+      emitJuce('felt_waveform', preset.pianoWave);
     }
 
     // 4. Drone waveform toggles & snap tuning
@@ -1203,7 +1235,7 @@ export class AmbientApp {
           btn.classList.toggle('is-active', isWaveformMatch(btn.getAttribute('data-wave'), waveA));
         });
         this.engine.setDroneWaveA(id, waveA);
-        this._emitJuceParamChange(`${pfx}_waveA`, waveA);
+        emitJuce(`${pfx}_waveA`, waveA);
       }
       if (waveB) {
         const btnsB = document.querySelectorAll(`.${pfx}-wave-b`);
@@ -1211,7 +1243,7 @@ export class AmbientApp {
           btn.classList.toggle('is-active', isWaveformMatch(btn.getAttribute('data-wave'), waveB));
         });
         this.engine.setDroneWaveB(id, waveB);
-        this._emitJuceParamChange(`${pfx}_waveB`, waveB);
+        emitJuce(`${pfx}_waveB`, waveB);
       }
 
       const snap = preset[`${pfx}Snap`];
@@ -1219,13 +1251,19 @@ export class AmbientApp {
         const snapBtns = document.querySelectorAll(`.${pfx}-snap-btn`);
         snapBtns.forEach(btn => btn.classList.toggle('is-active', btn.getAttribute('data-snap') === snap));
         this.engine.setDroneSnap(id, snap);
+        emitJuce(`${pfx}Snap`, snap);
       }
     });
 
     if (this.engine) {
-      this._emitJuceParamChange('drone1_pitch', this.engine.drone1Freq);
-      this._emitJuceParamChange('drone2_pitch', this.engine.drone2Freq);
-      this._emitJuceParamChange('drone1_isSubBass', (this.engine.drone1 && this.engine.drone1.isSubBass) ? 1.0 : 0.0);
+      const isSubBass1 = Boolean(
+        (this.engine.drone1 && this.engine.drone1.isSubBass) ||
+        this.engine.droneParams?.[1]?.isSubBass ||
+        this.engine.droneSnap?.[1] === 'sub-bass'
+      );
+      emitJuce('drone1_pitch', this.engine.drone1Freq);
+      emitJuce('drone2_pitch', this.engine.drone2Freq);
+      emitJuce('drone1_isSubBass', isSubBass1 ? 1.0 : 0.0);
     }
 
     // 5. Vector Pad Coordinates (sync visual coordinates without stomping calibrated preset knobs)
@@ -1236,20 +1274,26 @@ export class AmbientApp {
       } else {
         this.vectorPad.setCoordinates(preset.vectorX, preset.vectorY, false);
       }
+      emitJuce('vectorX', preset.vectorX);
+      emitJuce('vectorY', preset.vectorY);
     }
 
     // 6. Scale Selector (optional)
-    if (preset.scaleKey && preset.scaleKey !== this.engine.currentScaleKey) {
-      const scaleSelect = document.getElementById('select-scale');
-      if (scaleSelect) scaleSelect.value = preset.scaleKey;
-      this.engine.setScale(preset.scaleKey, this.engine.rootPitchClass);
-      if (this.playSurface) this.playSurface.rebuildKeys();
-      this.updateLoopNotes();
+    if (preset.scaleKey) {
+      if (preset.scaleKey !== this.engine.currentScaleKey) {
+        const scaleSelect = document.getElementById('select-scale');
+        if (scaleSelect) scaleSelect.value = preset.scaleKey;
+        this.engine.setScale(preset.scaleKey, this.engine.rootPitchClass);
+        if (this.playSurface) this.playSurface.rebuildKeys();
+        this.updateLoopNotes();
+      }
+      emitJuce('scaleKey', preset.scaleKey);
     }
 
     // 7. Chord Trigger / Strum Speed
     if (preset.chordSpeed && this.playSurface && typeof this.playSurface.setChordSpeed === 'function') {
       this.playSurface.setChordSpeed(preset.chordSpeed);
+      emitJuce('chordSpeed', preset.chordSpeed);
     }
 
     // Release applying preset flag once animation finishes
@@ -1441,7 +1485,7 @@ export class AmbientApp {
    * @param {number} [options.duration=350]
    * @returns {boolean} Success status
    */
-  loadPatch(patch, { animate = true, duration = 350 } = {}) {
+  loadPatch(patch, { animate = true, duration = 350, emitToNative = true } = {}) {
     if (!patch || typeof patch !== 'object') return false;
 
     // Cache the loaded patch for deterministic restoration via Reset All or preset switcher
@@ -1488,11 +1532,30 @@ export class AmbientApp {
       }
     }
 
+    const emitJuce = (id, val) => {
+      if (emitToNative && typeof this._emitJuceParamChange === 'function') {
+        this._emitJuceParamChange(id, val);
+      }
+    };
+
+    const presetProgramMap = { DEFAULT: 0, HAROLD_BUDD: 1, VANGELIS: 2, ENO_AIRPORTS: 3 };
+    if (this.isJuce) {
+      if (Object.prototype.hasOwnProperty.call(presetProgramMap, this.currentPresetKey)) {
+        emitJuce('currentProgram', presetProgramMap[this.currentPresetKey]);
+      } else if (this.currentPresetKey === 'CUSTOM' && this._loadedPatch) {
+        try {
+          emitJuce('customPatchJson', JSON.stringify(this._loadedPatch));
+        } catch (e) {}
+      }
+    }
+
     // 1. Root, Scale, and Tuning
     if (this.engine) {
       const root = patch.rootPitchClass !== undefined ? patch.rootPitchClass : this.engine.rootPitchClass;
       const scaleKey = patch.currentScaleKey || this.engine.currentScaleKey;
       this.engine.setScale(scaleKey, root);
+      emitJuce('rootPitchClass', root);
+      emitJuce('scaleKey', scaleKey);
 
       if (typeof document !== 'undefined') {
         const rootSelect = document.getElementById('select-root');
@@ -1511,6 +1574,7 @@ export class AmbientApp {
 
       if (patch.a4 !== undefined) {
         this.engine.setTuningReference(patch.a4);
+        emitJuce('tuningA4', patch.a4);
         if (typeof document !== 'undefined') {
           const tuningSelect = document.getElementById('select-tuning');
           if (tuningSelect) tuningSelect.value = String(patch.a4);
@@ -1523,11 +1587,13 @@ export class AmbientApp {
       document.body.setAttribute('data-theme', patch.theme);
       const themeSelect = document.getElementById('select-theme');
       if (themeSelect) themeSelect.value = patch.theme;
+      emitJuce('uiTheme', patch.theme);
     }
 
     // Chord Trigger / Strum Speed
     if (patch.chordSpeed && this.playSurface && typeof this.playSurface.setChordSpeed === 'function') {
       this.playSurface.setChordSpeed(patch.chordSpeed);
+      emitJuce('chordSpeed', patch.chordSpeed);
     }
 
     // 2. Knobs
@@ -1541,13 +1607,17 @@ export class AmbientApp {
             this.knobs[key].setValue(val, false);
           }
         }
+        emitJuce(key, val);
       });
-      if (patch.knobs.masterVolume !== undefined && this.knobs.masterVol && patch.knobs.masterVol === undefined) {
-        if (shouldAnimate && typeof this.knobs.masterVol.animateTo === 'function') {
-          this.knobs.masterVol.animateTo(patch.knobs.masterVolume, duration, null, false, false);
-        } else if (typeof this.knobs.masterVol.setValue === 'function') {
-          this.knobs.masterVol.setValue(patch.knobs.masterVolume, false);
+      if (patch.knobs.masterVolume !== undefined && patch.knobs.masterVol === undefined) {
+        if (this.knobs.masterVol) {
+          if (shouldAnimate && typeof this.knobs.masterVol.animateTo === 'function') {
+            this.knobs.masterVol.animateTo(patch.knobs.masterVolume, duration, null, false, false);
+          } else if (typeof this.knobs.masterVol.setValue === 'function') {
+            this.knobs.masterVol.setValue(patch.knobs.masterVolume, false);
+          }
         }
+        emitJuce('masterVol', patch.knobs.masterVolume);
       }
 
       // Also update engine immediately to guarantee parameters are synchronized
@@ -1599,6 +1669,7 @@ export class AmbientApp {
         btn.classList.toggle('is-active', match);
       });
       this.engine.setFeltWaveform(patch.pianoWave);
+      emitJuce('felt_waveform', patch.pianoWave);
     }
 
     // 4. Drone settings
@@ -1614,6 +1685,7 @@ export class AmbientApp {
               b.classList.toggle('is-active', isWaveformMatch(b.getAttribute('data-wave'), droneData.waveA));
             });
             this.engine.setDroneWaveA(id, droneData.waveA);
+            emitJuce(`drone${id}_waveA`, droneData.waveA);
           }
           if (droneData.waveB) {
             const btnsB = (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function')
@@ -1623,6 +1695,7 @@ export class AmbientApp {
               b.classList.toggle('is-active', isWaveformMatch(b.getAttribute('data-wave'), droneData.waveB));
             });
             this.engine.setDroneWaveB(id, droneData.waveB);
+            emitJuce(`drone${id}_waveB`, droneData.waveB);
           }
           if (droneData.snap) {
             const snapBtns = (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function')
@@ -1630,15 +1703,25 @@ export class AmbientApp {
               : [];
             snapBtns.forEach(b => b.classList.toggle('is-active', b.getAttribute('data-snap') === droneData.snap));
             this.engine.setDroneSnap(id, droneData.snap);
+            emitJuce(`drone${id}Snap`, droneData.snap);
           }
           if (droneData.active !== undefined) {
             const isDroneOn = Boolean(droneData.active);
             this.engine.setDroneActive(id, isDroneOn);
             this._syncDroneActiveUI(id, isDroneOn);
-            this._emitJuceParamChange(`drone${id}_active`, isDroneOn ? 1.0 : 0.0);
+            emitJuce(`drone${id}_active`, isDroneOn ? 1.0 : 0.0);
           }
         }
       });
+
+      const isSubBass1 = Boolean(
+        (this.engine.drone1 && this.engine.drone1.isSubBass) ||
+        this.engine.droneParams?.[1]?.isSubBass ||
+        this.engine.droneSnap?.[1] === 'sub-bass'
+      );
+      emitJuce('drone1_pitch', this.engine.drone1Freq);
+      emitJuce('drone2_pitch', this.engine.drone2Freq);
+      emitJuce('drone1_isSubBass', isSubBass1 ? 1.0 : 0.0);
     }
 
     // 5. Vector Pad
@@ -1649,6 +1732,8 @@ export class AmbientApp {
       } else {
         this.vectorPad.setCoordinates(patch.vectorPad.x, patch.vectorPad.y, false);
       }
+      if (patch.vectorPad.x !== undefined) emitJuce('vectorX', patch.vectorPad.x);
+      if (patch.vectorPad.y !== undefined) emitJuce('vectorY', patch.vectorPad.y);
     }
 
     // Release applying preset flag once animation finishes so vector pad isn't clobbered
@@ -1721,6 +1806,9 @@ export class AmbientApp {
       }
       this._emitJuceParamChange('delayFeedback', val);
     }
+    if (typeof data.x === 'number' && typeof data.y === 'number') {
+      this._emitJuceVectorState(data.x, data.y, this.vectorPad ? this.vectorPad.mode : 'momentary');
+    }
   }
 
   _getLoopBar(id) {
@@ -1791,21 +1879,33 @@ export class AmbientApp {
     if (this._startingAudioPromise) {
       return this._startingAudioPromise;
     }
+    const startEpoch = (this._powerEpoch = (this._powerEpoch || 0) + 1);
     this._startingAudio = true;
 
-    this._startingAudioPromise = (async () => {
+    let promise = null;
+    promise = (async () => {
       try {
         if (!this.isJuce) {
           await this.engine.init();
         }
+        if (this._powerEpoch !== startEpoch) {
+          return;
+        }
         this.isPowerOn = true;
 
         // Connect audio analyser to active CRT oscilloscope
-        if (this.scope) {
-          if (!this.isJuce && this.engine.analyser) {
-            this.scope.setAnalyser(this.engine.analyser);
+        if (this.display) {
+          if (!this.isJuce && this.engine.analyser && typeof this.display.setAnalyser === 'function') {
+            this.display.setAnalyser(this.engine.analyser);
           }
-          this.scope.setPower(true);
+          if (typeof this.display.setPower === 'function') {
+            this.display.setPower(true);
+          }
+          if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+            if (typeof this.display.start === 'function') {
+              this.display.start();
+            }
+          }
         }
 
         // Update power button UI
@@ -1828,12 +1928,20 @@ export class AmbientApp {
 
         this.updateLoopNotes();
       } finally {
-        this._startingAudio = false;
-        this._startingAudioPromise = null;
+        if (this._powerEpoch === startEpoch) {
+          this._startingAudio = false;
+        }
+        if (this._startingAudioPromise === promise) {
+          this._startingAudioPromise = null;
+        }
       }
     })();
 
-    return this._startingAudioPromise;
+    if (this._startingAudio && this._powerEpoch === startEpoch) {
+      this._startingAudioPromise = promise;
+    }
+
+    return promise;
   }
 
   async togglePower({ emitToNative = true } = {}) {
@@ -1841,9 +1949,12 @@ export class AmbientApp {
     const autoEvolveBtn = document.getElementById('toggle-auto-evolve');
     const loopsBtn = document.getElementById('toggle-phase-loops');
 
-    if (!this.isPowerOn) {
+    if (!this.isPowerOn && !this._startingAudio) {
       await this.startAudio({ emitToNative });
     } else {
+      this._powerEpoch = (this._powerEpoch || 0) + 1;
+      this._startingAudio = false;
+      this._startingAudioPromise = null;
       this.isPowerOn = false;
 
       if (emitToNative) {
@@ -1857,11 +1968,16 @@ export class AmbientApp {
         if (textEl) textEl.textContent = 'POWER ON';
       }
 
-      // Reset oscilloscope back to standby phosphor beam
-      if (this.scope) {
-        this.scope.setPower(false);
-        if (!this.isJuce) {
-          this.scope.setAnalyser(null);
+      // Stop oscilloscope rendering and reset back to standby phosphor beam
+      if (this.display) {
+        if (typeof this.display.stop === 'function') {
+          this.display.stop();
+        }
+        if (typeof this.display.setPower === 'function') {
+          this.display.setPower(false);
+        }
+        if (!this.isJuce && typeof this.display.setAnalyser === 'function') {
+          this.display.setAnalyser(null);
         }
       }
 
@@ -1914,6 +2030,28 @@ export class AmbientApp {
           if (bar) bar.style.width = '0%';
         });
       }
+      if (this.playSurface && typeof this.playSurface.cancelAllActive === 'function') {
+        this.playSurface.cancelAllActive();
+      }
+      const freezeBtn = (typeof document !== 'undefined' && typeof document.getElementById === 'function')
+        ? (document.getElementById('toggle-freeze') || document.getElementById('btn-freeze'))
+        : null;
+      const wasFreezeActive = Boolean(
+        this.engine?.reverbParams?.freeze ||
+        freezeBtn?.classList?.contains?.('is-active')
+      );
+      if (this.engine && typeof this.engine.releaseAllNotes === 'function') {
+        this.engine.releaseAllNotes();
+      }
+      if (wasFreezeActive) {
+        if (this.engine && typeof this.engine.setReverbFreeze === 'function') {
+          this.engine.setReverbFreeze(false);
+        }
+        this._syncFreezeUI(false);
+        if (emitToNative) {
+          this._emitJuceParamChange('shimmer_freeze', 0.0);
+        }
+      }
       this._emitJuceAllNotesOff();
 
       if (!this.isJuce && this.engine.ctx) {
@@ -1943,10 +2081,15 @@ export class AmbientApp {
                 }
               }
               if (!held) {
+                let cur = (typeof bus.gain.value === 'number' && isFinite(bus.gain.value)) ? bus.gain.value : 1.0;
+                if (this.engine.drone1 && bus === this.engine.drone1.voiceGain && typeof this.engine.drone1._getInstantGain === 'function') {
+                  cur = this.engine.drone1._getInstantGain(now);
+                } else if (this.engine.drone2 && bus === this.engine.drone2.voiceGain && typeof this.engine.drone2._getInstantGain === 'function') {
+                  cur = this.engine.drone2._getInstantGain(now);
+                }
                 if (typeof bus.gain.cancelScheduledValues === 'function') {
                   bus.gain.cancelScheduledValues(now);
                 }
-                const cur = (typeof bus.gain.value === 'number' && isFinite(bus.gain.value)) ? bus.gain.value : 1.0;
                 if (typeof bus.gain.setValueAtTime === 'function') {
                   bus.gain.setValueAtTime(cur, now);
                 }
@@ -2010,7 +2153,7 @@ export class AmbientApp {
       size: 'medium',
       onChange: (v) => {
         this.engine.setFeltTone(v / 100);
-        if (!this._isApplyingPreset && this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating) {
+        if (!this._isApplyingPreset && !this._isSyncingFromHost && !this._nativeVectorLocked && this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating) {
           const normX = Math.max(0, Math.min(1, (v / 100 - 0.15) / 0.80));
           this.vectorPad.setCoordinates(normX, this.vectorPad.y, false);
         }
@@ -2150,7 +2293,7 @@ export class AmbientApp {
       size: 'medium',
       onChange: (v) => {
         this.engine.setReverbShimmer(v / 100);
-        if (!this._isApplyingPreset && this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating) {
+        if (!this._isApplyingPreset && !this._isSyncingFromHost && !this._nativeVectorLocked && this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating) {
           const normY = Math.max(0, Math.min(1, (v / 100) / 0.80));
           this.vectorPad.setCoordinates(this.vectorPad.x, normY, false);
         }
@@ -2334,6 +2477,7 @@ export class AmbientApp {
         btn.classList.add('is-active');
         const snapKey = btn.getAttribute('data-snap');
         this.engine.setDroneSnap(id, snapKey);
+        this._emitJuceParamChange(`${prefix}Snap`, snapKey);
         this._emitJuceParamChange('drone1_pitch', this.engine.drone1Freq);
         this._emitJuceParamChange('drone2_pitch', this.engine.drone2Freq);
         if (id === 1) {
@@ -2376,6 +2520,17 @@ export class AmbientApp {
       }
     } catch (err) {
       console.warn('JUCE backend emitEvent error:', err);
+    }
+  }
+
+  _emitJuceVectorState(x, y, mode = 'momentary') {
+    try {
+      const backend = (typeof window !== 'undefined') ? window.__JUCE__?.backend : null;
+      if (backend && typeof backend.emitEvent === 'function') {
+        backend.emitEvent('vectorState', { x, y, mode });
+      }
+    } catch (err) {
+      console.warn('JUCE backend emitEvent vectorState error:', err);
     }
   }
 
@@ -2440,11 +2595,20 @@ export class AmbientApp {
         backend.addEventListener('paramUpdate', (payload) => {
           if (!payload || typeof payload !== 'object') return;
           const { id, value } = payload;
+          if (id === 'syncBegin') {
+            this._isSyncingFromHost = true;
+            return;
+          }
+          if (id === 'syncEnd') {
+            this._isSyncingFromHost = false;
+            return;
+          }
           if (id === 'power' && typeof value === 'number') {
             const nextPower = (value > 0.5);
             if (nextPower && !this.isPowerOn) {
               this.startAudio({ emitToNative: false }).catch(() => {});
-            } else if (!nextPower && this.isPowerOn) {
+            } else if (!nextPower && (this.isPowerOn || this._startingAudio)) {
+              this.isPowerOn = true;
               this.togglePower({ emitToNative: false }).catch(() => {});
             }
             if (this.display) {
@@ -2492,6 +2656,129 @@ export class AmbientApp {
             this._syncFreezeUI(isFrozen);
             return;
           }
+          if ((id === 'uiTheme' || id === 'theme') && typeof value === 'string') {
+            const nextTheme = value.trim().toLowerCase();
+            if (nextTheme === 'dark' || nextTheme === 'light') {
+              if (typeof document !== 'undefined') {
+                if (document.body && typeof document.body.setAttribute === 'function') {
+                  document.body.setAttribute('data-theme', nextTheme);
+                }
+                const themeSelect = document.getElementById?.('select-theme');
+                if (themeSelect) themeSelect.value = nextTheme;
+              }
+            }
+            return;
+          }
+          if (id === 'rootPitchClass' && typeof value === 'number' && Number.isFinite(value)) {
+            const root = Math.max(0, Math.min(11, Math.round(value)));
+            if (this.engine) {
+              this.engine.setScale(this.engine.currentScaleKey, root);
+            }
+            if (typeof document !== 'undefined') {
+              const rootSelect = document.getElementById?.('select-root');
+              if (rootSelect) rootSelect.value = String(root);
+            }
+            if (this.playSurface && typeof this.playSurface.rebuildKeys === 'function') {
+              this.playSurface.rebuildKeys();
+            }
+            this.updateLoopNotes();
+            return;
+          }
+          if ((id === 'scaleKey' || id === 'currentScaleKey') && typeof value === 'string') {
+            const sk = value.trim();
+            if (sk && SCALES[sk]) {
+              if (this.engine) {
+                this.engine.setScale(sk, this.engine.rootPitchClass);
+              }
+              if (typeof document !== 'undefined') {
+                const scaleSelect = document.getElementById?.('select-scale');
+                if (scaleSelect) scaleSelect.value = sk;
+              }
+              if (this.playSurface && typeof this.playSurface.rebuildKeys === 'function') {
+                this.playSurface.rebuildKeys();
+              }
+              this.updateLoopNotes();
+            }
+            return;
+          }
+          if ((id === 'tuningA4' || id === 'a4') && typeof value === 'number' && Number.isFinite(value)) {
+            if (value >= 400 && value <= 480) {
+              if (this.engine && typeof this.engine.setTuningReference === 'function') {
+                this.engine.setTuningReference(value);
+              }
+              if (typeof document !== 'undefined') {
+                const tuningSelect = document.getElementById?.('select-tuning');
+                if (tuningSelect) tuningSelect.value = String(value);
+              }
+              if (this.playSurface && typeof this.playSurface.rebuildKeys === 'function') {
+                this.playSurface.rebuildKeys();
+              }
+              this.updateLoopNotes();
+            }
+            return;
+          }
+          if ((id === 'drone1Snap' || id === 'drone2Snap') && typeof value === 'string') {
+            const dId = id === 'drone2Snap' ? 2 : 1;
+            const snap = value.trim();
+            if (snap) {
+              if (this.engine && typeof this.engine.setDroneSnap === 'function') {
+                this.engine.setDroneSnap(dId, snap);
+              }
+              if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+                const snapBtns = document.querySelectorAll(`.drone${dId}-snap-btn`);
+                snapBtns.forEach(btn => btn.classList.toggle('is-active', btn.getAttribute('data-snap') === snap));
+              }
+            }
+            return;
+          }
+          if ((id === 'drone1Pitch' || id === 'drone1_pitch') && typeof value === 'number' && Number.isFinite(value)) {
+            if (this.engine && value > 10) {
+              this.engine.drone1Freq = value;
+            }
+            return;
+          }
+          if ((id === 'drone2Pitch' || id === 'drone2_pitch') && typeof value === 'number' && Number.isFinite(value)) {
+            if (this.engine && value > 10) {
+              this.engine.drone2Freq = value;
+            }
+            return;
+          }
+          if (id === 'chordSpeed' && typeof value === 'string') {
+            if (this.playSurface && typeof this.playSurface.setChordSpeed === 'function') {
+              this.playSurface.setChordSpeed(value.trim().toLowerCase(), false);
+            }
+            return;
+          }
+          if (id === 'scopeMode' && typeof value === 'string') {
+            const nextMode = value.trim().toUpperCase();
+            if (this.scope && typeof this.scope.setMode === 'function') {
+              this.scope.setMode(nextMode);
+            }
+            if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+              const modeTabs = document.querySelectorAll('.braun-mode-tab');
+              modeTabs.forEach(tab => {
+                const m = tab.getAttribute('data-mode');
+                tab.classList.toggle('is-active', Boolean(m && m.toUpperCase() === nextMode));
+              });
+            }
+            return;
+          }
+          if (id === 'vectorMode' && typeof value === 'string') {
+            if (this.vectorPad && typeof this.vectorPad.setMode === 'function') {
+              this.vectorPad.setMode(value, false);
+            }
+            return;
+          }
+          if ((id === 'vectorX' || id === 'vectorY') && typeof value === 'number' && Number.isFinite(value)) {
+            this._nativeVectorLocked = true;
+            Promise.resolve().then(() => { this._nativeVectorLocked = false; });
+            if (this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating) {
+              const nextX = id === 'vectorX' ? value : this.vectorPad.x;
+              const nextY = id === 'vectorY' ? value : this.vectorPad.y;
+              this.vectorPad.setCoordinates(nextX, nextY, false);
+            }
+            return;
+          }
           if (id === 'feltWaveform' || id === 'felt_waveform') {
             const waveNames = ['felt', 'sine', 'saw', 'square', 'cs80', 'triangle', 'warm'];
             const waveStr = (typeof value === 'number')
@@ -2535,6 +2822,7 @@ export class AmbientApp {
           if (id === 'currentProgram' && typeof value === 'number') {
             const programKeys = ['DEFAULT', 'HAROLD_BUDD', 'VANGELIS', 'ENO_AIRPORTS'];
             const nextKey = programKeys[Math.max(0, Math.min(programKeys.length - 1, Math.round(value)))] || 'DEFAULT';
+            this._loadedPatch = null;
             this.currentPresetKey = nextKey;
             if (typeof document !== 'undefined' && typeof document.getElementById === 'function') {
               const presetSelect = document.getElementById('select-preset');
@@ -2544,15 +2832,53 @@ export class AmbientApp {
             }
             return;
           }
+          if (id === 'customPatchJson' && typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed) {
+              try {
+                const parsed = JSON.parse(trimmed);
+                if (parsed && typeof parsed === 'object') {
+                  this._loadedPatch = parsed;
+                  this.currentPresetKey = 'CUSTOM';
+                  if (typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+                    const presetSelect = document.getElementById('select-preset');
+                    if (presetSelect) {
+                      let customOpt = (typeof presetSelect.querySelector === 'function')
+                        ? presetSelect.querySelector('option[value="CUSTOM"]')
+                        : null;
+                      if (!customOpt && presetSelect.children && Array.isArray(presetSelect.children)) {
+                        customOpt = presetSelect.children.find(c => c && (c.value === 'CUSTOM' || c.getAttribute?.('value') === 'CUSTOM'));
+                      }
+                      if (!customOpt && typeof document.createElement === 'function' && typeof presetSelect.appendChild === 'function') {
+                        customOpt = document.createElement('option');
+                        customOpt.value = 'CUSTOM';
+                        customOpt.setAttribute?.('value', 'CUSTOM');
+                        presetSelect.appendChild(customOpt);
+                      }
+                      if (customOpt) {
+                        if (customOpt.style) customOpt.style.display = '';
+                        const patchLabel = parsed.name
+                          ? (parsed.name.length > 28 ? parsed.name.slice(0, 28) + '…' : parsed.name)
+                          : 'CUSTOM PATCH';
+                        customOpt.textContent = patchLabel;
+                      }
+                      presetSelect.value = 'CUSTOM';
+                    }
+                  }
+                }
+              } catch (e) {}
+            }
+            return;
+          }
           if (id === 'drone1SubBass' || id === 'drone1_isSubBass') {
             const isSub = (typeof value === 'number') ? (value > 0.5) : Boolean(value);
             if (this.engine) {
               if (this.engine.droneParams && this.engine.droneParams[1]) {
                 this.engine.droneParams[1].isSubBass = isSub;
                 if (isSub) {
-                  this.engine.droneParams[1].snap = 'sub-bass';
-                } else if (this.engine.droneParams[1].snap === 'sub-bass') {
-                  this.engine.droneParams[1].snap = 'deep-tonic';
+                  this.engine.droneSnap[1] = 'sub-bass';
+                } else if (this.engine.droneSnap && this.engine.droneSnap[1] === 'sub-bass') {
+                  this.engine.droneSnap[1] = 'deep-tonic';
                 }
               }
               if (this.engine.drone1) {
@@ -2564,7 +2890,7 @@ export class AmbientApp {
               }
             }
             if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
-              const targetSnap = isSub ? 'sub-bass' : (this.engine?.droneParams?.[1]?.snap || 'deep-tonic');
+              const targetSnap = isSub ? 'sub-bass' : (this.engine?.droneSnap?.[1] || 'deep-tonic');
               const snapBtns = document.querySelectorAll('.drone1-snap-btn');
               snapBtns.forEach(btn => {
                 btn.classList.toggle('is-active', btn.getAttribute('data-snap') === targetSnap);
@@ -2636,16 +2962,32 @@ export class AmbientApp {
             } else if ((id === 'delay_time' || id === 'tape_time') && value > 0.0 && value <= 5.0) {
               knobVal = value * 1000;
             }
+            if (resolvedKnobKey === 'poissonDensity' && this.engine?.poisson) {
+              this.engine.poisson.setParameters({ eventsPerMinute: knobVal });
+            } else if (resolvedKnobKey === 'poissonHumanize' && this.engine) {
+              this.engine.setPoissonHumanize(knobVal / 100);
+            } else if (resolvedKnobKey === 'masterDrive' && this.engine) {
+              this.engine.setTapeDrive(knobVal / 100);
+            }
             // Apply to underlying engine so Web Audio graph stays in sync even when triggerCallback=false
             if (typeof knob.onChange === 'function' && !this.isJuce) {
               knob.setValue(knobVal, true);
             } else {
               // Passing false for triggerCallback suppresses re-emitting paramChange back to C++
               knob.setValue(knobVal, false);
+              if (typeof knob._localOnChange === 'function') {
+                const prevSync = this._isSyncingFromHost;
+                this._isSyncingFromHost = true;
+                try {
+                  knob._localOnChange(knob.value);
+                } finally {
+                  this._isSyncingFromHost = prevSync;
+                }
+              }
             }
           }
 
-          if (this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating && !this._isApplyingPreset && typeof value === 'number') {
+          if (this.vectorPad && !this.vectorPad.isEngaged && !this.vectorPad.isAnimating && !this._isApplyingPreset && !this._isSyncingFromHost && !this._nativeVectorLocked && typeof value === 'number') {
             if (id === 'feltTone' || id === 'felt_tone') {
               const val = (id === 'felt_tone' && value <= 1.0) ? value * 100 : value;
               const normX = Math.max(0, Math.min(1, (val / 100 - 0.15) / 0.80));
@@ -2730,6 +3072,7 @@ export class AmbientApp {
       for (const [id, knob] of Object.entries(this.knobs)) {
         if (!knob) continue;
         const originalOnChange = knob.onChange;
+        knob._localOnChange = originalOnChange;
         knob.onChange = (val) => {
           if (typeof originalOnChange === 'function') {
             originalOnChange(val);
@@ -2762,23 +3105,32 @@ export class AmbientApp {
       this._emitJuceParamChange('requestSync', 1.0);
     };
 
-    if (window.__JUCE__?.backend) {
+    if (this._juceBridgePoll) {
+      clearInterval(this._juceBridgePoll);
+      this._juceBridgePoll = null;
+    }
+
+    if (typeof window !== 'undefined' && window.__JUCE__?.backend) {
       setupBackend();
     } else {
       let attempts = 0;
       const poll = setInterval(() => {
         if (typeof window === 'undefined') {
           clearInterval(poll);
+          if (this._juceBridgePoll === poll) this._juceBridgePoll = null;
           return;
         }
         attempts++;
         if (window.__JUCE__?.backend) {
           clearInterval(poll);
+          if (this._juceBridgePoll === poll) this._juceBridgePoll = null;
           setupBackend();
         } else if (attempts >= 50) {
           clearInterval(poll);
+          if (this._juceBridgePoll === poll) this._juceBridgePoll = null;
         }
       }, 100);
+      this._juceBridgePoll = poll;
       if (typeof poll.unref === 'function') {
         poll.unref();
       }

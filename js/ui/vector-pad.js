@@ -18,6 +18,7 @@ export class BraunVectorPad {
     this.engine = options.engine || null;
     this.onEngage = options.onEngage || null;
     this.onChange = options.onChange || null;
+    this.onModeChange = options.onModeChange || null;
 
     this.defaultX = options.defaultX ?? 0.50;
     this.defaultY = options.defaultY ?? 0.50;
@@ -296,14 +297,23 @@ export class BraunVectorPad {
     });
   }
 
-  toggleMode() {
-    this.mode = this.mode === 'momentary' ? 'latch' : 'momentary';
+  setMode(mode, notify = false) {
+    const nextMode = (String(mode).toLowerCase() === 'latch') ? 'latch' : 'momentary';
+    this.mode = nextMode;
     if (this.modeBtn) {
       this.modeBtn.classList.toggle('is-active', this.mode === 'latch');
     }
     if (this.modeLabel) {
       this.modeLabel.textContent = this.mode.toUpperCase();
     }
+    if (notify && typeof this.onModeChange === 'function') {
+      this.onModeChange(this.mode);
+    }
+    this.draw();
+  }
+
+  toggleMode() {
+    this.setMode(this.mode === 'momentary' ? 'latch' : 'momentary', true);
     if (this.mode === 'momentary' && !this.isEngaged) {
       this._springReturn();
     }

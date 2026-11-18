@@ -2,6 +2,20 @@
 
 All notable changes, architectural modernizations, DSP optimizations, and bug remediations for the BRAUN AS 42 ambient synthesizer are documented in this file.
 
+## What's New in v1.5.1
+
+* **Minimize / Reopen & Host-Bridge State Synchronization (`js/app.js`, `js/ui/vector-pad.js`, `js/ui/keyboard.js`):**
+  * Guarded cold-DOM `applyPreset('DEFAULT', { animate: false, emitToNative: false })` so WebView2 boot or restore never overwrites C++ APVTS parameters with `PRESETS.DEFAULT`, and switched BFCache `pageshow` (`event.persisted`) inside JUCE WebView2 to request an authoritative `requestSync` from C++ instead of resetting UI controls.
+  * Wired bidirectional synchronization for all 16 extended UI properties (`uiTheme`, `rootPitchClass`, `scaleKey`, `tuningA4`, `masterDrive`, `poissonDensity`, `poissonHumanize`, `chordSpeed`, `scopeMode`, `drone1Snap`, `drone2Snap`, `vectorMode`, `vectorX`, `vectorY`, `customPatchJson`) with `syncBegin` / `syncEnd` reticle-lock protection and `_localOnChange` internal JS engine cache updates.
+* **Click-Free Power-Off With Active Drones & Async Startup Cancellation (`js/app.js`, `js/audio/engine.js`, `js/ui/keyboard.js`):**
+  * Synchronized `togglePower()` power-off to cancel all in-flight `allChordSessions` strum timers (`cancelAllActive()`), disarm `#toggle-freeze` + `shimmer_freeze`, anchor live `SolarDroneVoice._getInstantGain(now)` when `cancelAndHoldAtTime` is unavailable, and guard `AudioEngine.powerOff()` until `ctx.currentTime` advances past the 50 ms bus fade before `ctx.suspend()`.
+  * Added monotonic `_powerEpoch` cancellation in `startAudio()` / `togglePower()` so cancelling an in-flight `startAudio()` never leaves `_startingAudioPromise` wedged or flips `isPowerOn` back to `true` after completion.
+  * Paired with native `BRAUN AS-42 v1.5.1` (`withKeepPageLoadedWhenBrowserIsHidden()`, removal of steady-state `drone1Active`/`drone2Active` power re-waking in `processBlock()`, 45 ms $C^1$ Hermite power-off ramp, lock-free `dspSilent` / `pendingSilentPowerSnap`, and 50 ms VST3/AU tail guard).
+* **Certified 535-Test Web Suite (+ 16 Checklist Criteria & 78 Native C++ Tests):**
+  * Certified **100% PASS** across **535 Node.js automated tests** (`120` suites) and **16/16** `verify:checklist` criteria, synchronized with **78/78** native C++20 DSP & lifecycle tests in `BRAUN AS-42 v1.5.1`.
+
+---
+
 ## What's New in v1.5.0
 
 * **Reload, Soft-Reload, Standby & BFCache Drone Safety Remediation:**

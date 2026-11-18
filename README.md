@@ -1,10 +1,10 @@
 # BRAUN AS 42 · Ambient Generative Synthesizer
 
-[![Web Audio Live Demo](https://img.shields.io/badge/Web%20Audio-Live%20Demo%20v1.5.0-EE592B?style=for-the-badge&logo=html5&logoColor=white)](https://sneed-and-feed.github.io/)
-[![macOS AU & VST3](https://img.shields.io/badge/macOS-AU%20%7C%20VST3%20%7C%20Standalone-white?style=for-the-badge&logo=apple&logoColor=black)](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-macOS-Universal.zip)
-[![Windows VST3](https://img.shields.io/badge/Windows-VST3%20%7C%20Standalone-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-Windows-x64.zip)
+[![Web Audio Live Demo](https://img.shields.io/badge/Web%20Audio-Live%20Demo%20v1.5.1-EE592B?style=for-the-badge&logo=html5&logoColor=white)](https://sneed-and-feed.github.io/)
+[![macOS AU & VST3](https://img.shields.io/badge/macOS-AU%20%7C%20VST3%20%7C%20Standalone-white?style=for-the-badge&logo=apple&logoColor=black)](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.1/BRAUN_AS42-v1.5.1-macOS-Universal.zip)
+[![Windows VST3](https://img.shields.io/badge/Windows-VST3%20%7C%20Standalone-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.1/BRAUN_AS42-v1.5.1-Windows-x64.zip)
 [![Linux VST3](https://img.shields.io/badge/Linux-VST3%20%7C%20Standalone-FCC624?style=for-the-badge&logo=linux&logoColor=black)](#native-plugins--downloads)
-[![Verification Checklist](https://img.shields.io/badge/Verification-100%25%20PASS%20(533%2F533%20Web%20%7C%2016%2F16%20Checklist)-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white)](VERIFICATION_CHECKLIST.md)
+[![Verification Checklist](https://img.shields.io/badge/Verification-100%25%20PASS%20(535%2F535%20Web%20%7C%2016%2F16%20Checklist)-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white)](VERIFICATION_CHECKLIST.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-4A4A4A?style=for-the-badge)](LICENSE)
 
 > **Legal Homage Notice:** Not affiliated with Braun GmbH. Dieter Rams inspired design homage. Published by Sneed's Feed & Seed Ltd.  
@@ -25,13 +25,13 @@
 
 | Platform | Format | Distribution | Quick Action |
 | :--- | :--- | :--- | :--- |
-| **macOS** | AUv2 (`.component`), VST3, Standalone (`.app`) | Universal Binary (Apple Silicon & Intel) | [💾 Download `macOS-Universal.zip`](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-macOS-Universal.zip) · [All Releases](https://github.com/sneed-and-feed/braun_as-42/releases/latest) |
-| **Windows** | VST3, Standalone (`.exe`) | 64-bit Installer / Portable Archive | [💾 Download `Windows-x64.zip`](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-Windows-x64.zip) or [VST3 Only](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.0/BRAUN_AS42-v1.5.0-VST3-Windows-x64.zip) |
+| **macOS** | AUv2 (`.component`), VST3, Standalone (`.app`) | Universal Binary (Apple Silicon & Intel) | [💾 Download `macOS-Universal.zip`](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.1/BRAUN_AS42-v1.5.1-macOS-Universal.zip) · [All Releases](https://github.com/sneed-and-feed/braun_as-42/releases/latest) |
+| **Windows** | VST3, Standalone (`.exe`) | 64-bit Installer / Portable Archive | [💾 Download `Windows-x64.zip`](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.1/BRAUN_AS42-v1.5.1-Windows-x64.zip) or [VST3 Only](https://github.com/sneed-and-feed/braun_as-42/releases/download/v1.5.1/BRAUN_AS42-v1.5.1-VST3-Windows-x64.zip) |
 | **Linux** | VST3, Standalone | Source Build (GCC/Clang) | `cmake -B build -DAS42_USE_WEBVIEW=OFF && cmake --build build` |
 
 ### 🎚️ Sibling Instrument & Studio Processing Suite
 
-* [**BRAUN AS-42 (`v1.5.0`)**](https://github.com/sneed-and-feed/braun_as-42/releases/latest) — Native C++20 / JUCE 8 AUv2, VST3, and Standalone edition of this ambient generative synthesizer.
+* [**BRAUN AS-42 (`v1.5.1`)**](https://github.com/sneed-and-feed/braun_as-42/releases/latest) — Native C++20 / JUCE 8 AUv2, VST3, and Standalone edition of this ambient generative synthesizer.
 * [**BRAUN RB-26 (`v1.5.0`)**](https://github.com/sneed-and-feed/braun_rb-26/releases/latest) — Master Studio Reverberator & 8-line FDN acoustic space synthesizer with Shimmer/Dimmer diffusion.
 * [**BRAUN MR-16 (`v1.1.0`)**](https://github.com/sneed-and-feed/braun_mr-16/releases/latest) — 16-pole physical acoustic modal resonator & kinetic impulse synthesizer completing the Dieter Rams ambient trilogy.
 * [**Bumbler XD (`v1.1.0`)**](https://github.com/sneed-and-feed/bumbler_xd/releases/latest) — Hybrid analog-digital C++20 / JUCE 8 synthesizer homage with 4th-order PolyBLEP oscillators and CMOS ZDF filtering.
@@ -92,9 +92,9 @@ The AS 42 unites three complementary ambient acoustics into a tactile, foolproof
 
 ## 📚 Technical Documentation & Verification
 
-* 🏛️ [**ARCHITECTURE.md**](ARCHITECTURE.md) — Comprehensive technical datasheet (`v1.5.0`): physical modeling mechanics, Nyquist-bounded filter topologies, FDN shimmer matrix, standby/BFCache lifecycle safety, and full 38-parameter APVTS mapping.
-* 📋 [**CHANGELOG.md**](CHANGELOG.md) — Detailed engineering changelog from `v1.3.0` through `v1.5.0` modernizations.
-* 🔬 [**VERIFICATION_CHECKLIST.md**](VERIFICATION_CHECKLIST.md) — Certified test harness report (`533/533` Web Audio, MIDI, UI & HTTP server tests across `120` suites + `16/16` checklist criteria, aligned with `73/73` C++ DSP tests in `BRAUN AS-42 v1.5.0`).
+* 🏛️ [**ARCHITECTURE.md**](ARCHITECTURE.md) — Comprehensive technical datasheet (`v1.5.1`): physical modeling mechanics, Nyquist-bounded filter topologies, FDN shimmer matrix, standby/BFCache lifecycle safety, and full 38-parameter APVTS mapping.
+* 📋 [**CHANGELOG.md**](CHANGELOG.md) — Detailed engineering changelog from `v1.3.0` through `v1.5.1` modernizations.
+* 🔬 [**VERIFICATION_CHECKLIST.md**](VERIFICATION_CHECKLIST.md) — Certified test harness report (`535/535` Web Audio, MIDI, UI & HTTP server tests across `120` suites + `16/16` checklist criteria, aligned with `78/78` C++ DSP & lifecycle tests in `BRAUN AS-42 v1.5.1`).
 
 ---
 

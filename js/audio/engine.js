@@ -153,10 +153,15 @@ export class AudioEngine {
             }
           }
           if (!held) {
+            let cur = (typeof bus.gain.value === 'number' && isFinite(bus.gain.value)) ? bus.gain.value : 1.0;
+            if (this.drone1 && bus === this.drone1.voiceGain && typeof this.drone1._getInstantGain === 'function') {
+              cur = this.drone1._getInstantGain(now);
+            } else if (this.drone2 && bus === this.drone2.voiceGain && typeof this.drone2._getInstantGain === 'function') {
+              cur = this.drone2._getInstantGain(now);
+            }
             if (typeof bus.gain.cancelScheduledValues === 'function') {
               bus.gain.cancelScheduledValues(now);
             }
-            const cur = (typeof bus.gain.value === 'number' && isFinite(bus.gain.value)) ? bus.gain.value : 1.0;
             if (typeof bus.gain.setValueAtTime === 'function') {
               bus.gain.setValueAtTime(cur, now);
             }
@@ -172,6 +177,14 @@ export class AudioEngine {
 
         // Wait 80ms to ensure 50ms ramp and 15Hz master DC blocker settle into complete silence before suspend
         await new Promise(r => setTimeout(r, 80));
+
+        // If hardware audio clock lagged real-time timer jitter, allow remaining ramp milliseconds to finish
+        if (this.ctx && typeof this.ctx.currentTime === 'number' && this.ctx.state === 'running' && this.ctx.currentTime < now + rampDuration) {
+          const remainingMs = Math.min(80, Math.ceil((now + rampDuration - this.ctx.currentTime) * 1000) + 12);
+          if (remainingMs > 0) {
+            await new Promise(r => setTimeout(r, remainingMs));
+          }
+        }
 
         const endT = Math.max(this.ctx.currentTime, now + rampDuration);
         busses.forEach(bus => {

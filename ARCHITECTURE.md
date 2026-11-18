@@ -1,6 +1,6 @@
-# BRAUN AS 42 · DSP Architecture & Engineering Specification (`v1.5.0`)
+# BRAUN AS 42 · DSP Architecture & Engineering Specification (`v1.5.1`)
 
-> **Engineering Reference Manual (`v1.5.0`):** Physical modeling synthesis, continuous tape flutter, Nyquist-bounded filter topologies, modernized shimmer reverb matrix, browser lifecycle safety, and complete parameter reference.  
+> **Engineering Reference Manual (`v1.5.1`):** Physical modeling synthesis, continuous tape flutter, Nyquist-bounded filter topologies, modernized shimmer reverb matrix, browser & WebView2 lifecycle safety, and complete parameter reference.  
 > **Homage Notice:** Not affiliated with Braun GmbH. Dieter Rams inspired design homage. Published by Sneed's Feed & Seed Ltd.
 
 ---
